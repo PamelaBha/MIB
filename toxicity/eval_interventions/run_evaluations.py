@@ -28,6 +28,8 @@ from toxicity.eval_interventions.metric_funcs import (
 from toxicity.eval_interventions.hook_utils import (
     dont_hook,
     hook_subtract,
+    scale_top_key_vectors,
+    scale_top_value_vectors,
 )
 from constants import (
     ROOT_DIR,
@@ -58,6 +60,8 @@ METRIC_FUNCS = {
 }
 HOOK_FUNCS = {
     "subtraction": hook_subtract,
+    "scale_key_vector": scale_top_key_vectors,
+    "scale_value_vector": scale_top_value_vectors,
 }
 UNHOOK_FUNCS = {}
 
@@ -234,6 +238,7 @@ def run_eval(config):
 
         intervene_name = get_intervene_name(intervene_config)
         verbose_print(f"  Evaluating intervention {intervene_name}")
+
         results[intervene_name] = _eval_intervene(
             model, tokenizer, model_config, intervene_config, metric_configs
         )
@@ -247,7 +252,7 @@ def main():
     config = {
         "model": {
             "model_or_path": "gpt2-medium",
-            # "state_dict_path": os.path.join(CKPT_DIR, "dpo.pt"),
+            # "state_dict_path": os.path.join(CKPT_DIR, "dpo.pt"), # Use the DPO model
             "tokenizer": "gpt2-medium",
             "batch_size": 16,
             "device": "cuda" if torch.cuda.is_available() else "cpu",
@@ -277,37 +282,53 @@ def main():
             },
         ],
         "interventions": [
-            {"method": "noop", "params": {}},
-            {
-                "method": "subtraction",
-                "params": {
-                    "type": "mlp_w_out",
-                    "idx": 770,
-                    "layer": 19,
-                    "subtract_from": [[23]],
-                    "scales": [20],
-                }
-            },
-            {
-                "method": "subtraction",
-                "params": {
-                    "type": "toxic_probe",
-                    "scales": [50],
-                    "subtract_from": [[23]],
-                    "datapath": os.path.join(CKPT_DIR, "probe.pt"),
-                }
-            },
-            {
-                "method": "subtraction",
-                "params": {
-                    "type": "svd",
-                    "idx": 0,
-                    "scales": [100],
-                    "subtract_from": [[23]],
-                    "topk_sorted_score": 512,
-                    "datapath": os.path.join(CKPT_DIR, "probe.pt"),
-                }
-            },
+            # {"method": "noop", "params": {}},
+            # {
+            #     "method": "subtraction",
+            #     "params": {
+            #         "type": "mlp_w_out",
+            #         "idx": 770,
+            #         "layer": 19,
+            #         "subtract_from": [[23]],
+            #         "scales": [20],
+            #     }
+            # },
+            # {
+            #     "method": "subtraction",
+            #     "params": {
+            #         "type": "toxic_probe",
+            #         "scales": [50],
+            #         "subtract_from": [[23]],
+            #         "datapath": os.path.join(CKPT_DIR, "probe.pt"),
+            #     }
+            # },
+            # {
+            #     "method": "subtraction",
+            #     "params": {
+            #         "type": "svd",
+            #         "idx": 0,
+            #         "scales": [100],
+            #         "subtract_from": [[23]],
+            #         "topk_sorted_score": 512,
+            #         "datapath": os.path.join(CKPT_DIR, "probe.pt"),
+            #     }
+            # },
+            # {
+            #      "method": "scale_key_vector", 
+            #      "params": {
+            #          "probe_vector_path": os.path.join(CKPT_DIR, "probe.pt"),
+            #          "topk_sorted_score": 50,
+            #          "scale_factor": -1
+            #     }
+            # },
+            # {
+            #      "method": "scale_value_vector", 
+            #      "params": {
+            #          "probe_vector_path": os.path.join(CKPT_DIR, "probe.pt"),
+            #          "topk_sorted_score": 50,
+            #          # "scale_factor": 10
+            #     }
+            # }
         ],
     }
     results = run_eval(config)

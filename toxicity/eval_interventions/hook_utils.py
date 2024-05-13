@@ -113,3 +113,77 @@ def hook_subtract(model, config):
 
 def dont_hook(model, config):
     return model, []
+
+
+def scale_top_key_vectors(model, config):
+    """
+    Scales the key vectors of the MLPs based on the cosine similarity of the value vectors to a given toxic vector.
+    Args:
+        model (torch.nn.Module): The model being modified.
+        config (dict): Configuration for scaling including the path to the toxic vector, top_k, and scale_factor.
+    """
+    toxic_vector = torch.load(config['probe_vector_path'])
+    topk_sorted_score = config['topk_sorted_score']
+    scale_factor = config['scale_factor']
+    scores = []
+    
+    for layer in range(model.config.n_layer):
+        value_vectors = model.transformer.h[layer].mlp.c_proj.weight
+        cos_sims = F.cosine_similarity(value_vectors, toxic_vector.unsqueeze(0), dim=1)
+        _topk = cos_sims.topk(k=100)
+        _values = [x.item() for x in _topk.values]
+        _idxs = [x.item() for x in _topk.indices]
+        topk = list(zip(_values, _idxs, [layer] * _topk.indices.shape[0]))
+        scores.extend(topk)
+
+    sorted_scores = sorted(scores, key=lambda x: x[0], reverse=True)
+    
+    top_key_vecs = [
+        model.transformer.h[x[2]].mlp.c_fc.weight[:, x[1]]
+        for x in sorted_scores[:topk_sorted_score]
+    ]
+    with torch.no_grad():
+        for tensor in top_key_vecs:
+            tensor *= scale_factor
+    # with torch.no_grad():
+    #     for tensor in top_key_vecs:
+    #         tensor.zero_()
+
+    # Return model and an empty list of hooks for consistency
+    return model, [] 
+
+
+
+def scale_top_value_vectors(model, config):
+    toxic_vector = torch.load(config['probe_vector_path'])
+    topk_sorted_score = config['topk_sorted_score']
+    # scale_factor = config['scale_factor']
+    scores = []
+    
+    for layer in range(model.config.n_layer):
+        value_vectors = model.transformer.h[layer].mlp.c_proj.weight
+        cos_sims = F.cosine_similarity(value_vectors, toxic_vector.unsqueeze(0), dim=1)
+        _topk = cos_sims.topk(k=100)
+        _values = [x.item() for x in _topk.values]
+        _idxs = [x.item() for x in _topk.indices]
+        topk = list(zip(_values, _idxs, [layer] * _topk.indices.shape[0]))
+        scores.extend(topk)
+
+    sorted_scores = sorted(scores, key=lambda x: x[0], reverse=True)
+    
+    top_value_vecs = [
+        model.transformer.h[x[2]].mlp.c_proj.weight[x[1]]
+        for x in sorted_scores[:topk_sorted_score]
+    ]
+    # with torch.no_grad():
+    #     for tensor in top_key_vecs:
+    #         tensor *= scale_factor
+    with torch.no_grad():
+        for tensor in top_value_vecs:
+            tensor.zero_()
+
+    # Return model and an empty list of hooks for consistency
+    return model, [] 
+
+
+
