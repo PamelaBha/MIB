@@ -118,3 +118,28 @@ def get_svd(_model, toxic_vector, num_mlp_vecs):
 
     svd = torch.linalg.svd(_top_vecs.transpose(0, 1))
     return svd, sorted_scores
+
+
+def get_negative_svd(_model, toxic_vector, num_mlp_vecs):
+    scores = []
+    for layer in range(_model.cfg.n_layers):
+        mlp_outs = _model.blocks[layer].mlp.W_out
+        cos_sims = F.cosine_similarity(
+            mlp_outs, toxic_vector.unsqueeze(0), dim=1
+        ) # the anti-toxic vector
+        _topk = cos_sims.topk(k=300)
+        _values = [x.item() for x in _topk.values]
+        _idxs = [x.item() for x in _topk.indices]
+        topk = list(zip(_values, _idxs, [layer] * _topk.indices.shape[0]))
+        scores.extend(topk)
+
+    sorted_scores = sorted(scores, key=lambda x: x[0], reverse=False) # reverse the ordering
+    top_vecs = [
+        _model.blocks[x[2]].mlp.W_out[x[1]]
+        for x in sorted_scores[:num_mlp_vecs]
+    ]
+    top_vecs = [x / x.norm() for x in top_vecs]
+    _top_vecs = torch.stack(top_vecs)
+
+    svd = torch.linalg.svd(_top_vecs.transpose(0, 1))
+    return svd, sorted_scores

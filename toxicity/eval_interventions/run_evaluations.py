@@ -1,12 +1,17 @@
 """
 Evaluation Module for interventions
 """
+import sys
+sys.path.append('/code/dpo_toxic')
 
 from typing import Dict
 
 import os
 import copy
 import torch
+
+# os.chdir('/code/dpo_toxic')
+
 from toxicity.eval_interventions.eval_utils import (
     load_model,
     load_data,
@@ -30,6 +35,9 @@ from toxicity.eval_interventions.hook_utils import (
     hook_subtract,
     scale_top_key_vectors,
     scale_top_value_vectors,
+    scale_top_key_vectors_with_positive_activations,
+    scale_top_value_vectors_with_positive_activations,
+    hook_and_revert_activations
 )
 from constants import (
     ROOT_DIR,
@@ -62,6 +70,9 @@ HOOK_FUNCS = {
     "subtraction": hook_subtract,
     "scale_key_vector": scale_top_key_vectors,
     "scale_value_vector": scale_top_value_vectors,
+    "scale_key_vector_with_positive_activation": scale_top_key_vectors_with_positive_activations,
+    "scale_value_vector_with_positive_activation": scale_top_value_vectors_with_positive_activations,
+    "revert_activations": hook_and_revert_activations
 }
 UNHOOK_FUNCS = {}
 
@@ -252,7 +263,7 @@ def main():
     config = {
         "model": {
             "model_or_path": "gpt2-medium",
-            # "state_dict_path": os.path.join(CKPT_DIR, "dpo.pt"), # Use the DPO model
+            "state_dict_path": os.path.join(CKPT_DIR, "dpo.pt"), # Use the DPO model
             "tokenizer": "gpt2-medium",
             "batch_size": 16,
             "device": "cuda" if torch.cuda.is_available() else "cpu",
@@ -317,17 +328,41 @@ def main():
             #      "method": "scale_key_vector", 
             #      "params": {
             #          "probe_vector_path": os.path.join(CKPT_DIR, "probe.pt"),
-            #          "topk_sorted_score": 50,
-            #          "scale_factor": -1
+            #          "topk_sorted_score": 7,
+            #          "scale_factor": 10
             #     }
             # },
+            {
+                 "method": "scale_value_vector", 
+                 "params": {
+                     "probe_vector_path": os.path.join(CKPT_DIR, "probe.pt"),
+                     "topk_sorted_score": 200,
+                     "scale_factor": 0
+                }
+            }
             # {
-            #      "method": "scale_value_vector", 
+            #      "method": "scale_key_vector_with_positive_activation", 
             #      "params": {
-            #          "probe_vector_path": os.path.join(CKPT_DIR, "probe.pt"),
-            #          "topk_sorted_score": 50,
-            #          # "scale_factor": 10
+            #          "topk_sorted_score": 3000,
+            #          "scale_factor": 0,
+            #          "toxic_positive_acts_index_csv_path": "/code/dpo_toxic/toxic_positive_acts_idxs.csv"
             #     }
+            # }
+            # {
+            #      "method": "scale_value_vector_with_positive_activation", 
+            #      "params": {
+            #          "topk_sorted_score": 1000,
+            #          "scale_factor": 0,
+            #          "toxic_positive_acts_index_csv_path": "/code/dpo_toxic/toxic_positive_acts_idxs.csv"
+            #     }
+            # }
+            # {
+            #      "method": "revert_activations", 
+            #      "params": {
+            #         "probe_vector_path": os.path.join(CKPT_DIR, "probe.pt"),
+            #          "topk_sorted_score": 1,
+            #          "modification_value": [1]
+            #          }
             # }
         ],
     }
