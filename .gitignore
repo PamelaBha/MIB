@@ -1,7 +1,7 @@
 # Ignore uploading everything in these directories to github
 checkpoints/*
 data/*
-api_key
+# api_key
 
 # Except for placeholder.py files
 !checkpoints/placeholder.py

@@ -90,7 +90,7 @@ def hook_subtract(model, config):
 
     def patch(vec, _scale):
         def hook(module, input, output):
-
+            # print(f"Output shape: {output.shape}")
             _vec = vec.unsqueeze(0).unsqueeze(0)
             if hook_timesteps == -1:
                 _vec = _vec.repeat(output.shape[0], 1, 1)
@@ -296,89 +296,334 @@ def scale_top_value_vectors_with_positive_activations(model, config):
 
 
 
-def hook_and_revert_activations(model, config):
-    """
-    Hook and modify activations based on cosine similarity with a toxic vector.
-    """
-    # Load the toxic vector
-    print("Loading toxic vector...")
-    toxic_vector = torch.load(config['probe_vector_path'])  # Load the toxic vector
-    scores = []
+# def hook_and_revert_activations(model, config):
+#     """
+#     Hook and modify activations based on cosine similarity with a toxic vector.
+#     """
+#     # Load the toxic vector
+#     print("Loading toxic vector...")
+#     toxic_vector = torch.load(config['probe_vector_path'])  # Load the toxic vector
+#     scores = []
     
-    # Identify top-k similar value vectors across all layers
-    print("Identifying top-k similar value vectors...")
-    for layer in range(model.config.n_layer):
-        print(f"Processing layer {layer}...")
-        # Target the value vectors in the MLP
-        value_vectors = model.transformer.h[layer].mlp.c_proj.weight
+#     # Identify top-k similar value vectors across all layers
+#     print("Identifying top-k similar value vectors...")
+#     for layer in range(model.config.n_layer):
+#         print(f"Processing layer {layer}...")
+#         # Target the value vectors in the MLP
+#         value_vectors = model.transformer.h[layer].mlp.c_proj.weight
         
-        # Compute cosine similarities between the value vectors and the toxic vector
-        cos_sims = F.cosine_similarity(value_vectors, toxic_vector.unsqueeze(0), dim=1)
+#         # Compute cosine similarities between the value vectors and the toxic vector
+#         cos_sims = F.cosine_similarity(value_vectors, toxic_vector.unsqueeze(0), dim=1)
         
-        # Get the top k most similar value vectors
-        _topk = cos_sims.topk(k=config['topk_sorted_score'])
-        _values = _topk.values.tolist()
-        _idxs = _topk.indices.tolist()
-        topk = list(zip(_values, _idxs, [layer] * len(_idxs)))
-        scores.extend(topk)
+#         # Get the top k most similar value vectors
+#         _topk = cos_sims.topk(k=config['topk_sorted_score'])
+#         _values = _topk.values.tolist()
+#         _idxs = _topk.indices.tolist()
+#         topk = list(zip(_values, _idxs, [layer] * len(_idxs)))
+#         scores.extend(topk)
 
-    # Sort the scores in descending order based on cosine similarity
-    sorted_scores = sorted(scores, key=lambda x: x[0], reverse=True)
-    print(f"Top-k sorted scores identified: {sorted_scores[:5]}... (showing first 5)")
+#     # Sort the scores in descending order based on cosine similarity
+#     sorted_scores = sorted(scores, key=lambda x: x[0], reverse=True)
+#     print(f"Top-k sorted scores identified: {sorted_scores[:5]}... (showing first 5)")
 
-    # Hook function to modify activations
-    def modify_activations(module, input, output):
-        """
-        A forward hook function to modify activations before they are passed to c_proj.
-        """
-        print("Modifying activations...")
-        topk_sorted_score = config['topk_sorted_score']
-        modification_value = config['modification_value']
+#     # Hook function to modify activations
+#     def modify_activations(module, input, output):
+#         """
+#         A forward hook function to modify activations before they are passed to c_proj.
+#         """
+#         print("Modifying activations...")
+#         topk_sorted_score = config['topk_sorted_score']
+#         modification_value = config['modification_value']
         
-        # Ensure modification_value is not longer than sorted_scores[:topk_sorted_score]
-        if len(modification_value) > topk_sorted_score:
-            modification_value = modification_value[:topk_sorted_score]
+#         # Ensure modification_value is not longer than sorted_scores[:topk_sorted_score]
+#         if len(modification_value) > topk_sorted_score:
+#             modification_value = modification_value[:topk_sorted_score]
 
-        # Get the input tensor
-        activation_input = input[0]
-        original_shape = activation_input.shape
-        print(f"Original activation input shape: {original_shape}")
+#         # Get the input tensor
+#         activation_input = input[0]
+#         original_shape = activation_input.shape
+#         print(f"Original activation input shape: {original_shape}")
 
-        # Modify the activations for the selected neurons
-        with torch.no_grad():
-            for i, score in enumerate(sorted_scores[:topk_sorted_score]):
-                vector_idx = score[1]
-                print(f"Modifying neuron {vector_idx} in activation...")
+#         # Modify the activations for the selected neurons
+#         with torch.no_grad():
+#             for i, score in enumerate(sorted_scores[:topk_sorted_score]):
+#                 vector_idx = score[1]
+#                 print(f"Modifying neuron {vector_idx} in activation...")
 
-                # Ensure modification_value[i] is compatible with activation_input[:, :, vector_idx]
-                if torch.is_tensor(modification_value[i]):
-                    if modification_value[i].shape == ():
-                        # If scalar, broadcast it
-                        activation_input[:, :, vector_idx] = modification_value[i]
-                    else:
-                        # If tensor, ensure it's the correct shape
-                        assert modification_value[i].shape == activation_input[:, :, vector_idx].shape, \
-                            f"Shape mismatch: modification_value[{i}].shape = {modification_value[i].shape}, expected {activation_input[:, :, vector_idx].shape}"
-                        activation_input[:, :, vector_idx] = modification_value[i]
+#                 # Ensure modification_value[i] is compatible with activation_input[:, :, vector_idx]
+#                 if torch.is_tensor(modification_value[i]):
+#                     if modification_value[i].shape == ():
+#                         # If scalar, broadcast it
+#                         activation_input[:, :, vector_idx] = modification_value[i]
+#                     else:
+#                         # If tensor, ensure it's the correct shape
+#                         assert modification_value[i].shape == activation_input[:, :, vector_idx].shape, \
+#                             f"Shape mismatch: modification_value[{i}].shape = {modification_value[i].shape}, expected {activation_input[:, :, vector_idx].shape}"
+#                         activation_input[:, :, vector_idx] = modification_value[i]
+#                 else:
+#                     # If modification_value[i] is a scalar, broadcast it to the appropriate shape
+#                     activation_input[:, :, vector_idx] = torch.full_like(activation_input[:, :, vector_idx], modification_value[i])
+
+#         modified_shape = activation_input.shape
+#         print(f"Modified activation input shape: {modified_shape}")
+
+#         # Ensure the modified shape matches the original shape
+#         assert modified_shape == original_shape, "Shape of activation input changed unexpectedly after modification!"
+
+#         print("Activation modification complete.")
+#         return activation_input  # Ensure the input is returned if modified
+
+#     # Register the forward hook for each layer in the model
+#     hooks = []
+#     for layer in range(model.config.n_layer):
+#         print(f"Registering hook for layer {layer}...")
+#         hook = model.transformer.h[layer].mlp.c_proj.register_forward_hook(modify_activations)
+#         hooks.append(hook)
+
+#     print("Hooks registered successfully.")
+#     return model, hooks  # Return both the model and the hooks
+
+
+
+
+
+
+
+
+# def zero_out_activation_at_neuron(model, config):
+#     """
+#     Modify the activation coefficient for a specific neuron (neuron_idx) in the output of the c_fc layer (first weight vector for the MLP neuron).
+#     """
+#     layer_idx = config['layer_index']
+#     neuron_idx = config['neuron_index']
+#     hook_timesteps = config["hook_timesteps"]
+    
+#     # Hook function to modify activations
+#     def modify_activation(module, input, output):
+#         """
+#         Forward hook to zero out the activation coefficient in the output of c_fc for the specified neuron.
+#         """
+#         print(f"Zeroing out activation coefficient at layer {layer_idx}, neuron {neuron_idx} (output of c_fc)...")
+#         print(f"Output shape: {output.shape}")
+        
+#         with torch.no_grad():
+#             # Ensure the neuron index is within the bounds of the output tensor
+#             if neuron_idx < output.shape[-1]:
+#                 # Zero out the activation coefficient at the specified neuron
+#                 output_mod = output.clone()  # Clone the output tensor to modify it
+#                 output_mod[:, hook_timesteps, neuron_idx] = 0
+#             else:
+#                 print(f"Neuron index {neuron_idx} is out of bounds for the output tensor with dimension {output.shape[-1]}")
+#                 output_mod = output
+
+#         return output_mod  # Return the modified output tensor
+
+#     # Register the forward hook on the output of the c_fc layer in the specified transformer layer
+#     print(f"Registering hook for layer {layer_idx} at neuron {neuron_idx} (output of c_fc)...")
+#     hook = model.transformer.h[layer_idx].mlp.c_fc.register_forward_hook(modify_activation)
+
+#     print("Hook registered successfully.")
+#     return model, hook  # Return the model and the hook to allow for cleanup later
+
+
+
+
+# def assign_values_to_neurons(model, config):
+#     """
+#     Modify the activation coefficients for multiple neurons in different layers. Each entry in the config
+#     contains a tuple (layer_idx, neuron_idx, assigned_value), and all modifications happen in one hook.
+#     """
+#     neuron_configs = config['neuron_configs']  # List of (layer_idx, neuron_idx, assigned_value)
+#     # hook_timesteps = config["hook_timesteps"]
+    
+#     # Hook function to modify activations for multiple neurons
+#     def modify_activation(module, input, output):
+#         """
+#         Forward hook to assign specific values to the activation coefficients for the specified neurons.
+#         """
+#         print(f"Modifying activation values for multiple neurons...")
+#         # print(f"Output shape: {output.shape}")
+#         # print(f"Input shape: {input[0].shape}")
+
+#         with torch.no_grad():
+#             # output_mod = output.clone()  # Clone the output tensor to modify it
+#             # input_mod = input[0].clone()
+
+#             # Iterate over the neuron configurations
+#             for (layer_idx, neuron_idx, assigned_value) in neuron_configs:
+#                 # if neuron_idx < input[0].shape[-1]:
+#                 if neuron_idx < output.shape[-1]:
+#                     print(f"Assigning value {assigned_value} to neuron {neuron_idx} at layer {layer_idx}...")
+#                     # Assign the specific value to the neuron activation
+#                     # input[0][:, -1, neuron_idx] = assigned_value
+#                     output[:, -1, neuron_idx] = assigned_value
+#                 else:
+#                     print(f"Neuron index {neuron_idx} is out of bounds for the output tensor with dimension {output.shape[-1]}")
+
+#         return output  # Return the modified output tensor
+    
+#     # Register a single forward hook on the output of the c_fc layer in the specified transformer layer
+#     print(f"Registering hook for modifying multiple neuron activations...")
+#     # hook = model.transformer.h[neuron_configs[0][0]].mlp.c_proj.register_forward_hook(modify_activation)
+#     hook = model.transformer.h[neuron_configs[0][0]].mlp.c_fc.register_forward_hook(modify_activation)
+
+#     print("Hook registered successfully.")
+#     return model, hook  # Return the model and the hook for cleanup later
+
+
+
+def assign_values_to_neurons(model, config):
+    """
+    Modify the activation coefficients for specific neurons in different layers. Each entry in the config
+    contains a tuple (layer_idx, neuron_idx, assigned_value), and one hook is registered per (layer, neuron) pair.
+    """
+    neuron_configs = config['neuron_configs']  # List of (layer_idx, neuron_idx, assigned_value)
+    hook_timesteps = config["hook_timesteps"]
+
+    def patch(neuron_idx, assigned_value):
+        def hook(module, input, output):
+            """
+            Forward hook to assign a specific value to the activation coefficient for the specified neuron.
+            """
+            print(f"Modifying activation value for neuron {neuron_idx}...")
+
+            with torch.no_grad():
+                if neuron_idx < output.shape[-1]:
+                    print(f"Assigning value {assigned_value} to neuron {neuron_idx}...")
+                    output[:, hook_timesteps, neuron_idx] = assigned_value
                 else:
-                    # If modification_value[i] is a scalar, broadcast it to the appropriate shape
-                    activation_input[:, :, vector_idx] = torch.full_like(activation_input[:, :, vector_idx], modification_value[i])
+                    print(f"Neuron index {neuron_idx} is out of bounds for the output tensor with dimension {output.shape[-1]}")
 
-        modified_shape = activation_input.shape
-        print(f"Modified activation input shape: {modified_shape}")
+            return output
 
-        # Ensure the modified shape matches the original shape
-        assert modified_shape == original_shape, "Shape of activation input changed unexpectedly after modification!"
+        return hook
 
-        print("Activation modification complete.")
-        return activation_input  # Ensure the input is returned if modified
-
-    # Register the forward hook for each layer in the model
     hooks = []
-    for layer in range(model.config.n_layer):
-        print(f"Registering hook for layer {layer}...")
-        hook = model.transformer.h[layer].mlp.c_proj.register_forward_hook(modify_activations)
-        hooks.append(hook)
+
+    # Register a hook for each (layer_idx, neuron_idx) pair
+    for layer_idx, neuron_idx, assigned_value in neuron_configs:
+        print(f"Registering hook for neuron {neuron_idx} in layer {layer_idx}...")
+
+        # Register the hook on the c_fc layer of the given layer index
+        hook = model.transformer.h[layer_idx].mlp.c_fc.register_forward_hook(
+            patch(neuron_idx, assigned_value)
+        )
+        hooks.append(hook)  # Keep track of the hooks for cleanup later
+
+    print(f"Hooks registered successfully for {len(neuron_configs)} neurons.")
+    return model, hooks  # Return the model and the hooks for cleanup later
+
+
+
+
+def print_and_return_activation_values(model, config):
+    """
+    Found that output of c_fc is before GeLU, input to c_proj is after GeLU.
+    Print dimensions and return the activation values at neuron_idx for the output of c_fc and input of c_proj.
+    """
+    layer_idx = config['layer_index']
+    neuron_idx = config['neuron_index']
+    # hook_timesteps = config["hook_timesteps"]
+
+    
+    # Hook function to capture and print activations
+    def capture_output_to_c_fc(module, input, output):
+        """
+        Forward hook to print and return dimensions and values at the specific neuron.
+        """
+        print(f"Capturing activations at layer {layer_idx}, neuron {neuron_idx}...")
+        
+        # Print dimensions of the output of c_fc
+        print(f"Output of c_fc dimensions: {output.shape}")
+        
+        # Ensure the neuron index is within the bounds of the output tensor
+        if neuron_idx < output.shape[-1]:
+            neuron_value = output[:, -1, neuron_idx].detach().cpu().numpy() # Take the neuron value at the last time step
+            print(f"Output of c_fc at neuron {neuron_idx}: {neuron_value}")
+        else:
+            print(f"Neuron index {neuron_idx} is out of bounds for c_fc output with dimension {output.shape[-1]}")
+            neuron_value = None
+
+        return output  # Return the original output unchanged
+
+    def capture_input_to_c_proj(module, input, output):
+        """
+        Forward hook to capture the input to c_proj.
+        """
+        # Print dimensions of the input to c_proj
+        print(f"Input to c_proj dimensions: {input[0].shape}")  # Input is a tuple, so input[0] is what we care about
+
+        # Ensure the neuron index is within bounds of the input tensor
+        if neuron_idx < input[0].shape[-1]:
+            neuron_value = input[0][:, -1, neuron_idx].detach().cpu().numpy() # Take the neuron value at the last time step
+            print(f"Input to c_proj at neuron {neuron_idx}: {neuron_value}")
+        else:
+            print(f"Neuron index {neuron_idx} is out of bounds for c_proj input with dimension {input[0].shape[-1]}")
+            neuron_value = None
+
+        return output  # Return the original output unchanged
+
+    # Register the forward hooks on the output of c_fc and the input of c_proj in the specified transformer layer
+    print(f"Registering hooks for layer {layer_idx} at neuron {neuron_idx} (c_fc and c_proj)...")
+    
+    # Hook for c_fc output
+    c_fc_hook = model.transformer.h[layer_idx].mlp.c_fc.register_forward_hook(capture_output_to_c_fc)
+    
+    # Hook for c_proj input
+    c_proj_hook = model.transformer.h[layer_idx].mlp.c_proj.register_forward_hook(capture_input_to_c_proj)
 
     print("Hooks registered successfully.")
-    return model, hooks  # Return both the model and the hooks
+    return model, [c_fc_hook, c_proj_hook]  # Return the model and the hooks for later cleanup
+
+
+
+# def assign_values_to_neurons(model, config):
+#     """
+#     Modify the activation coefficients for multiple neurons in different layers. Each entry in the config
+#     contains a tuple (layer_idx, neuron_idx, assigned_value), and all modifications happen in one hook.
+    
+#     Args:
+#         model: The transformer model to modify.
+#         config: Dictionary containing 'neuron_configs' as a list of tuples (layer_idx, neuron_idx, assigned_value).
+    
+#     Returns:
+#         model: The model with the hook registered.
+#         hooks: A list of hook handles for cleanup later.
+#     """
+#     neuron_configs = config['neuron_configs']  # List of (layer_idx, neuron_idx, assigned_value)
+#     hooks = []  # List to store hook handles for cleanup
+    
+#     # Define hook function to modify activations
+#     def modify_activation(module, input, output):
+#         """
+#         Forward hook to assign specific values to the activation coefficients for the specified neurons.
+#         """
+#         print(f"Modifying activation values for multiple neurons...")
+#         print(f"Output shape: {output.shape}")
+
+#         with torch.no_grad():
+#             output_mod = output.clone()  # Clone the output tensor to modify it
+
+#             # Iterate over the neuron configurations
+#             for (layer_idx, neuron_idx, assigned_value) in neuron_configs:
+#                 if neuron_idx < output.shape[-1]:
+#                     print(f"Assigning value {assigned_value} to neuron {neuron_idx} at layer {layer_idx}...")
+#                     # Assign the specific value to the neuron activation
+#                     output_mod[:, -1, neuron_idx] = assigned_value
+#                 else:
+#                     print(f"Neuron index {neuron_idx} is out of bounds for the output tensor with dimension {output.shape[-1]}")
+
+#         return output_mod  # Return the modified output tensor
+
+#     # Register a hook for each layer in neuron_configs
+#     for (layer_idx, neuron_idx, _) in neuron_configs:
+#         print(f"Registering hook for layer {layer_idx} and neuron {neuron_idx}...")
+#         hook = model.blocks[layer_idx].mlp.hook_post.register_forward_hook(modify_activation)
+#         hooks.append(hook)
+
+#     print("Hooks registered successfully.")
+#     return model, hooks  # Return the model and list of hooks for cleanup later
+
+
+
+           

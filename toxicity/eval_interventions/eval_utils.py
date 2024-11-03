@@ -86,6 +86,7 @@ def load_model(config):
 
     else:
         tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+
     return model, tokenizer
 
 
