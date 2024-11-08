@@ -5,7 +5,7 @@ How Neuron Dynamics Drive Toxicity Reduction](XXXXX), accepted at NeurIPS 2024 w
 
 ![DPO_toxic_MLP](neuron_groups.png)
 
-Contrary to past claims [[1]](https://arxiv.org/abs/2401.01967), we found that DPO’s effect is not solely due to dampened toxic neurons. Instead, DPO accumulates effects across multiple neuron groups to reduce toxicity (see graph above), both reducing toxicity and promoting anti-toxicity in the residual stream.
+Building on findings from [[1]](https://arxiv.org/abs/2401.01967), we found that DPO’s effect is not solely due to dampened toxic neurons. Instead, DPO accumulates effects across multiple neuron groups to reduce toxicity (see graph above), both reducing toxicity and promoting anti-toxicity in the residual stream.
 
 ## Models and data
 
