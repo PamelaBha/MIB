@@ -1,7 +1,6 @@
 # Unpacking DPO: How Neuron Dynamics Drive Toxicity Reduction
 
-This repository provides the code for [Ablation is Not Enough to Emulate DPO:
-How Neuron Dynamics Drive Toxicity Reduction](XXXXX), accepted at NeurIPS 2024 workshop [Foundation Model Interventions (MINT)]([https://sites.google.com/view/neurips2024-ftw](https://sites.google.com/view/mint-2024/)).
+This repository provides the code for [Beyond Toxic Neurons: A Mechanistic Analysis of DPO for Toxicity Reduction](XXXXX), accepted at NeurIPS 2024 workshop [Foundation Model Interventions (MINT)]([https://sites.google.com/view/neurips2024-ftw](https://sites.google.com/view/mint-2024/)).
 
 ![DPO_toxic_MLP](neuron_groups.png)
 
