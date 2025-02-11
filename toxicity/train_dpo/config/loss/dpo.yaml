@@ -1,0 +1,12 @@
+# do DPO preference-based training
+name: dpo
+
+# the temperature parameter for DPO; lower values mean we care less about
+# the reference model
+beta: 0.1
+
+# KL divergence weight; used to regularize policy updates
+kl_gamma: 0.02 
+
+# if true, use a uniform (maximum entropy) reference model
+reference_free: false

@@ -1,0 +1,8 @@
+name_or_path: meta-llama/Llama-2-7b-hf
+tokenizer_name_or_path: meta-llama/Llama-2-7b-hf
+archive: null
+block_name: LlamaDecoderLayer
+
+policy_dtype: float16  # Recommended for memory efficiency
+fsdp_policy_mp: null
+reference_dtype: float16

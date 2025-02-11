@@ -1,7 +1,11 @@
 # Ignore uploading everything in these directories to github
 checkpoints/*
 data/*
-# api_key
+outputs/*
+svd_projected_tokens_split0.log
+svd_projected_tokens.log
+api_key
+all_n
 
 # Except for placeholder.py files
 !checkpoints/placeholder.py
