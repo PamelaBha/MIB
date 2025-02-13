@@ -90,7 +90,7 @@ def get_intervene_vector(model, config):
 
 #     def patch(vec, _scale):
 #         def hook(module, input, output):
-#             # print(f"Output shape: {output.shape}")
+
 #             _vec = vec.unsqueeze(0).unsqueeze(0)
 #             if hook_timesteps == -1:
 #                 _vec = _vec.repeat(output.shape[0], 1, 1)
@@ -115,7 +115,7 @@ def get_intervene_vector(model, config):
 
 def hook_subtract(model, config):
     """
-    Hooks into the MLP layers of different models (GPT-2, Mistral, LLaMA, Gemma) to subtract a specified intervention vector.
+    Hooks into the MLP layers of different models (GPT-2, Mistral, Llama, Gemma) to subtract a specified intervention vector.
 
     Args:
         model: The loaded language model.
@@ -137,52 +137,73 @@ def hook_subtract(model, config):
             """
             Applies an intervention by subtracting `vec` scaled by `_scale` from the model's output.
             """
-            _vec = vec.unsqueeze(0).unsqueeze(0)  # Ensure at least (1, 1, hidden_dim)
+            try:
+                device = output.device  # Get the device of the output tensor
+                _vec = vec.clone().to(device)  # Move vec to the same device as output
 
-            if output.dim() == 2:  # (batch_size, hidden_dim)
-                _vec = _vec.squeeze(1)  # Remove sequence dimension
-                _vec = _vec.repeat(output.shape[0], 1)  # Repeat for batch size only
+                # print(f"[DEBUG] Output shape: {output.shape}")
+                # print(f"[DEBUG] Vec shape before adjustment: {_vec.shape} (on device: {_vec.device})")
 
-            elif output.dim() == 3:  # (batch_size, seq_len, hidden_dim)
-                _vec = _vec.repeat(output.shape[0], output.shape[1], 1)  # Repeat across batch & sequence
+                # **Ensure _vec is 3D: (1, 1, hidden_dim)**
+                _vec = _vec.squeeze()  # Remove unnecessary dimensions
+                if _vec.dim() == 1:  # (hidden_dim,) -> expand to (1, 1, hidden_dim)
+                    _vec = _vec.unsqueeze(0).unsqueeze(0)
 
-            elif output.dim() == 1:  # Edge case: single hidden state (hidden_dim,)
-                _vec = _vec.squeeze(0)  # Remove batch dimension
+                # **Match _vec dimensions to output dimensions**
+                if output.dim() == 2:  # (batch_size, hidden_dim)
+                    _vec = _vec.squeeze(1)  # Remove sequence dimension
+                    _vec = _vec.expand(output.shape[0], -1)  # Expand across batch
 
-            else:
-                raise RuntimeError(f"Unexpected output shape: {output.shape}, Vec shape: {_vec.shape}")
+                elif output.dim() == 3:  # (batch_size, seq_len, hidden_dim)
+                    _vec = _vec.expand(output.shape[0], output.shape[1], -1)  # Expand across batch & sequence
 
-            output -= _scale * _vec  # Apply subtraction
-            return output
+                elif output.dim() == 1:  # Edge case: single hidden state (hidden_dim,)
+                    _vec = _vec.squeeze(0)  # Remove batch dimension
 
+                else:
+                    raise RuntimeError(f"Unexpected output shape: {output.shape}, Vec shape: {_vec.shape}")
+
+                # print(f"[DEBUG] Vec shape after adjustment: {_vec.shape}")
+
+                output -= _scale * _vec  # Apply subtraction
+                return output  # Ensure function returns output
+
+            except Exception as e:
+                print(f"[ERROR] Hook function encountered an error: {e}")
+                return output  # Ensure output is always returned
+
+        print(f"[DEBUG] Hook function created successfully!")  # Ensure the function is created
         return hook
 
     hooks = []
     for layer in subtract_from:
-        if "gemma" in model.__class__.__name__.lower():
-            # Gemma architecture (layers are in model.model.layers)
-            hook = model.model.layers[layer].mlp.register_forward_hook(
-                patch(intervene_vector, scale)
-            )
+        try:
+            hook_fn = patch(intervene_vector, scale)  # Ensure patch() actually returns a function
 
-        elif "llama" in model.__class__.__name__.lower() or "mistral" in model.__class__.__name__.lower():
-            # LLaMA & Mistral architecture (FFN layer in model.model.layers[layer].feed_forward)
-            hook = model.model.layers[layer].feed_forward.register_forward_hook(
-                patch(intervene_vector, scale)
-            )
+            if "gemma" in model.__class__.__name__.lower() or "llama" in model.__class__.__name__.lower():
+                hook = model.model.layers[layer].mlp.register_forward_hook(hook_fn)
 
-        elif "gpt2" in model.__class__.__name__.lower():
-            # GPT-2 architecture (MLP is in model.transformer.h[layer].mlp)
-            hook = model.transformer.h[layer].mlp.register_forward_hook(
-                patch(intervene_vector, scale)
-            )
+            elif "mistral" in model.__class__.__name__.lower():
+                hook = model.model.layers[layer].mlp.register_forward_hook(hook_fn)
 
-        else:
-            raise ValueError(f"Unsupported model architecture: {type(model).__name__}")
+            elif "gpt2" in model.__class__.__name__.lower():
+                hook = model.transformer.h[layer].mlp.register_forward_hook(hook_fn)
 
-        hooks.append(hook)
+            else:
+                raise ValueError(f"Unsupported model architecture: {type(model).__name__}")
+
+            if hook is None:
+                print(f"[ERROR] Hook registration failed for layer {layer}!")
+            else:
+                print(f"[DEBUG] Hook successfully registered for layer {layer}!")
+
+            hooks.append(hook)
+
+        except Exception as e:
+            print(f"[ERROR] Hook registration failed for layer {layer}: {e}")
 
     return model, hooks
+
 
 
 

@@ -1,26 +1,25 @@
 import os
 import torch
 import numpy as np
-import pandas as pd
 import datasets
+import pandas as pd
 import torch.nn as nn
 import torch.optim as optim
 from datasets import load_dataset
 from transformers import AutoTokenizer, AutoModelForCausalLM
-from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Choose model 
-MODEL_NAME = "google/gemma-2-2b" #"meta-llama/Llama-3.1-8B" # "mistralai/Mistral-7B-v0.1" # "google/gemma-2-2b","gpt2-medium", "meta-llama/Llama-3.1-8B"
+# Choose model
+MODEL_NAME = "meta-llama/Llama-3.1-8B"  
 
 # Load tokenizer and model
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 model = AutoModelForCausalLM.from_pretrained(MODEL_NAME).to(device)
-model.eval()  # Set model to evaluation mode
+model.eval()  
 
 # Ensure tokenizer has a padding token
 if tokenizer.pad_token is None:
@@ -30,31 +29,41 @@ if tokenizer.pad_token is None:
         tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         model.resize_token_embeddings(len(tokenizer))  # Resize embeddings to account for new token
 
-# Load Jigsaw Toxicity dataset
+# Load Jigsaw Toxicity dataset (train + test set) using `load_dataset`
 dataset = load_dataset("jigsaw_toxicity_pred", data_dir="/data/kebl6672/dpo-toxic-general/data/jigsaw-toxic-comment-classification-challenge")
 
-# Tokenize the dataset before splitting
+# Check available splits
+print("Dataset splits available:", dataset.keys())
+
+# Tokenize function
 def tokenize_batch(batch):
     return tokenizer(batch["comment_text"], truncation=True, padding="max_length", max_length=128)
 
-dataset = dataset.map(tokenize_batch, batched=True)  # Ensure all data has 'input_ids' and 'attention_mask'
+# Apply tokenization to train and test datasets
+train_dataset = dataset["train"].map(tokenize_batch, batched=True)
+test_dataset = dataset["test"].map(tokenize_batch, batched=True)
 
-# Convert dataset to Pandas DataFrame
-train_df = pd.DataFrame(dataset["train"])
+# Convert to DataFrame
+train_df = pd.DataFrame(train_dataset)
+test_df = pd.DataFrame(test_dataset)
 
-# Split dataset (90:10 for training and validation)
-train_df, val_df = train_test_split(train_df, test_size=0.1, random_state=42)
+# Filter out -1 labels from test set (since -1 indicates unlabeled samples)
+test_df = test_df[test_df["toxic"] != -1]
 
 # Reset indices to avoid misalignment issues
 train_df = train_df.reset_index(drop=True)
-val_df = val_df.reset_index(drop=True)
+test_df = test_df.reset_index(drop=True)
+
+# Check dataset sizes
+print(f"Train dataset size: {len(train_df)}")
+print(f"Test dataset size: {len(test_df)}")
 
 # Extract text and labels
 train_texts, train_labels = train_df["comment_text"].tolist(), train_df["toxic"].tolist()
-val_texts, val_labels = val_df["comment_text"].tolist(), val_df["toxic"].tolist()
+test_texts, test_labels = test_df["comment_text"].tolist(), test_df["toxic"].tolist()
 
 # Process data in small batches to avoid memory issues
-BATCH_SIZE = 128  # Adjust as needed
+BATCH_SIZE = 64  # Adjust as needed
 
 def extract_features(texts):
     """ Extracts residual stream features in batches. """
@@ -63,7 +72,7 @@ def extract_features(texts):
     for i in range(0, len(texts), BATCH_SIZE):
         batch_texts = texts[i : i + BATCH_SIZE]
         inputs = tokenizer(batch_texts, truncation=True, padding="max_length", max_length=128, return_tensors="pt")
-        inputs = {k: v.to(device, non_blocking=True) for k, v in inputs.items()}  # Move batch to GPU
+        inputs = {k: v.to(device, non_blocking=True) for k, v in inputs.items()}  
 
         with torch.no_grad():
             outputs = model(**inputs, output_hidden_states=True)
@@ -76,33 +85,15 @@ def extract_features(texts):
     
     return np.vstack(all_features)
 
-# Extract features for training and validation
+# Extract features for training and testing
 print("Extracting train features...")
 train_features = extract_features(train_texts)
-print("Extracting validation features...")
-val_features = extract_features(val_texts)
-
-# # Handle NaN values: Replace NaNs with 0
-# train_features = np.nan_to_num(train_features)
-# val_features = np.nan_to_num(val_features)
-
-# # Ensure train_labels matches train_features
-# if len(train_features) != len(train_labels):
-#     print(f"WARNING: Mismatch in train set! Features: {len(train_features)}, Labels: {len(train_labels)}")
-#     min_len = min(len(train_features), len(train_labels))
-#     train_features = train_features[:min_len]
-#     train_labels = train_labels[:min_len]
-
-# # Ensure val_labels matches val_features
-# if len(val_features) != len(val_labels):
-#     print(f"WARNING: Mismatch in validation set! Features: {len(val_features)}, Labels: {len(val_labels)}")
-#     min_len = min(len(val_features), len(val_labels))
-#     val_features = val_features[:min_len]
-#     val_labels = val_labels[:min_len]
+print("Extracting test features...")
+test_features = extract_features(test_texts)
 
 # Convert labels to NumPy array
 train_labels = np.array(train_labels)
-val_labels = np.array(val_labels)
+test_labels = np.array(test_labels)
 
 # Train a linear probe (Logistic Regression)
 clf = LogisticRegression(max_iter=500)
@@ -110,10 +101,10 @@ clf.fit(train_features, train_labels)
 
 # Save the learned probe vector (weights of logistic regression)
 probe_vector = torch.tensor(clf.coef_, dtype=torch.float32)  # Shape: (1, hidden_dim)
-torch.save(probe_vector, "gemma_probe.pt")
-print("Toxicity probe vector saved as 'probe.pt'.")
+torch.save(probe_vector, "llama_probe.pt")
+print("Toxicity probe vector saved as 'llama_probe.pt'.")
 
 # Evaluate the probe model
-val_preds = clf.predict(val_features)
-accuracy = accuracy_score(val_labels, val_preds)
-print(f"Validation Accuracy: {accuracy:.4f}")
+test_preds = clf.predict(test_features)
+accuracy = accuracy_score(test_labels, test_preds)
+print(f"Test Accuracy: {accuracy:.4f}")

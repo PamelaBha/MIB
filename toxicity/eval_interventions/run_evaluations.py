@@ -299,9 +299,9 @@ def main():
     verbose_mode = VERBOSE  
     config = {
         "model": {
-            "model_or_path": "gpt2-medium", #"google/gemma-2-2b", # "gpt2-medium", # "meta-llama/Llama-2-7b-hf", # "meta-llama/Llama-3.1-8B", # "mistralai/Mistral-7B-Instruct-v0.1", # "google/gemma-2-2b-it", # "mistralai/Mistral-7B-v0.1",# "google/gemma-2-2b", #"meta-llama/Meta-Llama-3-8B", # gpt2-medium
-            #"state_dict_path": os.path.join(CKPT_DIR, "gemma_dpo.pt"), # Use the DPO model # dpo.pt #mistral_dpo.pt
-            "tokenizer": "gpt2-medium", # "meta-llama/Llama-2-7b-hf", # "mistralai/Mistral-7B-Instruct-v0.1", #"google/gemma-2-2b-it", #"mistralai/Mistral-7B-v0.1",#"google/gemma-2-2b", #"meta-llama/Meta-Llama-3-8B", # gpt2-medium
+            "model_or_path": "google/gemma-2-9b", #"meta-llama/Llama-3.1-8B", #"google/gemma-2-2b", # "gpt2-medium", # "meta-llama/Llama-3.1-8B", # "google/gemma-2-2b-it", # "mistralai/Mistral-7B-v0.1"
+            # "state_dict_path": os.path.join(CKPT_DIR, "llama_dpo.pt"), # Use the DPO model # dpo.pt #mistral_dpo.pt
+            "tokenizer": "google/gemma-2-9b", # "mistralai/Mistral-7B-v0.1", # "meta-llama/Llama-3.1-8B", # "meta-llama/Llama-2-7b-hf", #"google/gemma-2-2b-it", #"mistralai/Mistral-7B-v0.1",#"google/gemma-2-2b", #"meta-llama/Meta-Llama-3-8B", # gpt2-medium
             "batch_size": 64,
             "device": device if torch.cuda.is_available() else "cpu",
         },
@@ -320,25 +320,25 @@ def main():
                 "max_prompt_size": 32,
                 "max_new_tokens": 20,
                 "generate": True,
-                "params": {"include_prompt": False},  # No need for "attributes" as Detoxify doesn't use them
+                "params": {"include_prompt": False},  
             },
-            # {
-            #     "datapath": "wikitext",
-            #     "dataname": "wikitext-2-raw-v1",
-            #     "split": "test",
-            #     "metric": "perplexity",
-            #     "generate": False,
-            # },
-            # {
-            #     "datapath": os.path.join(DATA_DIR, "wiki_samples_dev.jsonl") if verbose_mode else os.path.join(DATA_DIR, "wiki_samples.jsonl"),
-            #     "metric": "f1",
-            #     "max_prompt_size": 32,
-            #     "max_new_tokens": 20,
-            #     "generate": True,
-            # },
+            {
+                "datapath": "wikitext",
+                "dataname": "wikitext-2-raw-v1",
+                "split": "test",
+                "metric": "perplexity",
+                "generate": False,
+            },
+            {
+                "datapath": os.path.join(DATA_DIR, "wiki_samples_dev.jsonl") if verbose_mode else os.path.join(DATA_DIR, "wiki_samples.jsonl"),
+                "metric": "f1",
+                "max_prompt_size": 32,
+                "max_new_tokens": 20,
+                "generate": True,
+            },
         ],
         "interventions": [
-            # {"method": "noop", "params": {}},
+            {"method": "noop", "params": {}},
             # {
             #     "method": "subtraction",
             #     "params": {
@@ -353,9 +353,9 @@ def main():
             #     "method": "subtraction",
             #     "params": {
             #         "type": "toxic_probe",
-            #         "scales": [50],
-            #         "subtract_from": [[23]],
-            #         "datapath": os.path.join(CKPT_DIR, "gemma_probe.pt"),
+            #         "scales": [7],
+            #         "subtract_from": [[31]], 
+            #         "datapath": os.path.join(CKPT_DIR, "mistral_probe.pt"),
             #     }
             # },
             # {
