@@ -14,8 +14,10 @@ from sklearn.metrics import accuracy_score
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Choose model 
-MODEL_NAME = "google/gemma-2-2b" #"meta-llama/Llama-3.1-8B" # "mistralai/Mistral-7B-v0.1" # "google/gemma-2-2b","gpt2-medium", "meta-llama/Llama-3.1-8B"
+# Change as needed
+MODEL_NAME = "meta-llama/Llama-2-7b-hf" # "google/gemma-2-2b" #"meta-llama/Llama-3.1-8B" # "mistralai/Mistral-7B-v0.1" # "google/gemma-2-2b","gpt2-medium", "meta-llama/Llama-3.1-8B"
+PROBE_NAME = "llama2_probe.pt"
+BATCH_SIZE = 128  
 
 # Load tokenizer and model
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
@@ -53,8 +55,6 @@ val_df = val_df.reset_index(drop=True)
 train_texts, train_labels = train_df["comment_text"].tolist(), train_df["toxic"].tolist()
 val_texts, val_labels = val_df["comment_text"].tolist(), val_df["toxic"].tolist()
 
-# Process data in small batches to avoid memory issues
-BATCH_SIZE = 128  # Adjust as needed
 
 def extract_features(texts):
     """ Extracts residual stream features in batches. """
@@ -100,6 +100,7 @@ val_features = extract_features(val_texts)
 #     val_features = val_features[:min_len]
 #     val_labels = val_labels[:min_len]
 
+
 # Convert labels to NumPy array
 train_labels = np.array(train_labels)
 val_labels = np.array(val_labels)
@@ -110,8 +111,8 @@ clf.fit(train_features, train_labels)
 
 # Save the learned probe vector (weights of logistic regression)
 probe_vector = torch.tensor(clf.coef_, dtype=torch.float32)  # Shape: (1, hidden_dim)
-torch.save(probe_vector, "gemma_probe.pt")
-print("Toxicity probe vector saved as 'probe.pt'.")
+torch.save(probe_vector, PROBE_NAME)
+print("Toxicity probe vector saved.")
 
 # Evaluate the probe model
 val_preds = clf.predict(val_features)

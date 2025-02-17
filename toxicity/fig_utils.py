@@ -8,6 +8,7 @@ import einops
 from transformer_lens import (
     HookedTransformer,
 )
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 def convert(orig_state_dict, cfg):
@@ -93,6 +94,26 @@ def load_hooked(model_name, weights_path):
     model.tokenizer.padding_side = "left"
     model.tokenizer.pad_token_id = model.tokenizer.eos_token_id
     return model
+
+
+
+def load_model(model_name, weights_path=None, device="cuda"):
+    """
+    Loads the DPO-ed version of Hugging Face transformer model for causal LM.
+    """
+    # Load model
+    model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16, device_map="auto")
+    
+    # Move to device
+    model.to(device)
+
+    # If custom weights are provided, load them
+    if weights_path:
+        state_dict = torch.load(weights_path, map_location=device)
+        model.load_state_dict(state_dict, strict=False)  # strict=False allows missing keys
+
+    return model
+
 
 
 def get_svd(_model, toxic_vector, num_mlp_vecs):
