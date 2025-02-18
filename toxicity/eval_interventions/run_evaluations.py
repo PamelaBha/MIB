@@ -300,7 +300,7 @@ def main():
     config = {
         "model": {
             "model_or_path": "meta-llama/Llama-3.1-8B", #"meta-llama/Llama-3.1-8B", #"google/gemma-2-2b", # "gpt2-medium", # "meta-llama/Llama-3.1-8B", # "google/gemma-2-2b-it", # "mistralai/Mistral-7B-v0.1"
-            "state_dict_path": os.path.join(CKPT_DIR, "llama3_dpo_2.pt"), # Use the DPO model # dpo.pt #mistral_dpo.pt
+            "state_dict_path": os.path.join(CKPT_DIR, "llama3_dpo_3.pt"), # Use the DPO model # dpo.pt #mistral_dpo.pt
             "tokenizer": "meta-llama/Llama-3.1-8B", # "mistralai/Mistral-7B-v0.1", # "meta-llama/Llama-3.1-8B", # "meta-llama/Llama-2-7b-hf", #"google/gemma-2-2b-it", #"mistralai/Mistral-7B-v0.1",#"google/gemma-2-2b", #"meta-llama/Meta-Llama-3-8B", # gpt2-medium
             "batch_size": 64,
             "device": device if torch.cuda.is_available() else "cpu",

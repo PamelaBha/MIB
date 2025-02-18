@@ -64,97 +64,8 @@ tokenized_prompts = tokenizer(prompts, return_tensors="pt", padding=True, trunca
 
 
 
-# Compute the neuron toxicity projection 
-def compute_neuron_toxic_projection(model, tokenized_prompts, toxic_vector, batch_size=2):
-    """
-    Computes neuron toxicity projections by extracting activations after non-linearity
-    using hooks on up_proj.
-    """
-    model_neuron_projections = defaultdict(list)
-    sample_size = tokenized_prompts.size(0)
-
-    print("Computing MLP neuron projections...")
-
-    device = next(model.parameters()).device  # Get model's device
-
-    # Storage for activations extracted from inputs to down_proj
-    neuron_acts_storage = {}
-
-    # Hook function to capture activations after non-linearity
-    def hook_fn(module, input, output, layer_idx):
-        neuron_acts_storage[layer_idx] = input[0]  # Store activations (B, T, d_mlp)
-        print(f"Layer {layer_idx} activation shape (B, T, d_mlp): {neuron_acts_storage[layer_idx].shape}") 
-
-    # Register hooks for all layers
-    hooks = []
-    for layer_idx in range(len(model.model.layers)):
-        hook = model.model.layers[layer_idx].mlp.down_proj.register_forward_hook(
-            lambda module, input, output, l=layer_idx: hook_fn(module, input, output, l)
-        )
-        hooks.append(hook)
-
-    for idx in tqdm(range(0, sample_size, batch_size)):
-        batch = tokenized_prompts[idx: idx + batch_size, :].to(device)
-
-        for timestep in range(20):  # Generate 20 tokens
-            with torch.inference_mode():
-                outputs = model(batch, output_hidden_states=True, return_dict=True)
-                cache = outputs.hidden_states  # Extract the hidden states
-
-            # Ensure cache tensors are moved to the correct device
-            cache = [v.to(device).detach().clone() for v in cache]  # Convert to list if needed
-
-            print(f"Number of hidden state layers in cache: {len(cache)}")
-            for i, layer_cache in enumerate(cache):
-                print(f"Layer {i} hidden state shape: {layer_cache.shape}")  # (B, T, d)
-
-            sampled = model.lm_head(cache[-1]).argmax(-1).detach().to(device)[:, -1] # Generate the next token (B, 1)
-
-            for layer_idx in range(len(model.model.layers)):
-                if layer_idx in neuron_acts_storage:
-                    neuron_acts = neuron_acts_storage[layer_idx]  # Get stored activations (B, T, d_mlp)
-                    print(f"Neuron activations shape (B, T, d_mlp) at layer {layer_idx}: {neuron_acts.shape}")
-                else:
-                    continue
-
-                value_vectors = model.model.layers[layer_idx].mlp.down_proj.weight.to(device).T # (d_mlp, d)
-                print(f"Down_proj weight shape (d_mlp, d) at layer {layer_idx}: {value_vectors.shape}")
-
-
-                # Compute neuron outputs
-                neuron_outputs = torch.einsum('btd,dm->btdm', neuron_acts.clone(), value_vectors.clone())  # (B, T, d_mlp, d) 
-                print(f"Neuron outputs shape (B, T, d_mlp, d) at layer {layer_idx}: {neuron_outputs.shape}")
-
-                toxic_vector = toxic_vector.to(device, dtype=torch.float16).squeeze(0) # (d, )
-                print(f"Toxic vector shape (d, ): {toxic_vector.shape}")
-      
-                neuron_projections = torch.matmul(neuron_outputs, toxic_vector.to(device)) / torch.norm(toxic_vector.to(device)) # (B, T, d_mlp)
-                print(f"Neuron projections shape (B, T, d_mlp) at layer {layer_idx}: {neuron_projections.shape}")
-
-                for neuron_idx in range(neuron_projections.size(2)):
-                    print(f"Neuron {neuron_idx} projections shape (B, T) at layer {layer_idx}: {neuron_projections[:, :, neuron_idx].shape}")
-                    model_neuron_projections[(layer_idx, neuron_idx)].extend(neuron_projections[:, :,neuron_idx].tolist()) # flatted (B, T) to (B*T) in list
-
-            batch = torch.concat([batch, sampled.unsqueeze(-1)], dim=-1) # Add the generated token, (B, T+1)
-
-    # Remove all hooks
-    for hook in hooks:
-        hook.remove()
-
-    # Compute final average neuron projections over B, T, and the 20 generated tokens
-    avg_neuron_projections = {
-        (layer_idx, neuron_idx): np.mean(projections)
-        for (layer_idx, neuron_idx), projections in model_neuron_projections.items()
-    }
-
-    return avg_neuron_projections
-
-
-
-
-
 # # Compute the neuron toxicity projection 
-# def compute_neuron_toxic_projection_test(model, tokenized_prompts, toxic_vector, batch_size=64):
+# def compute_neuron_toxic_projection(model, tokenized_prompts, toxic_vector, batch_size=2):
 #     """
 #     Computes neuron toxicity projections by extracting activations after non-linearity
 #     using hooks on up_proj.
@@ -166,18 +77,18 @@ def compute_neuron_toxic_projection(model, tokenized_prompts, toxic_vector, batc
 
 #     device = next(model.parameters()).device  # Get model's device
 
-#     # Storage for activations extracted from up_proj
+#     # Storage for activations extracted from inputs to down_proj
 #     neuron_acts_storage = {}
 
 #     # Hook function to capture activations after non-linearity
 #     def hook_fn(module, input, output, layer_idx):
-#         neuron_acts_storage[layer_idx] = input[0]  # Store activations
-#         print(f"Layer {layer_idx} activation shape: {neuron_acts_storage[layer_idx].shape}")
+#         neuron_acts_storage[layer_idx] = input[0]  # Store activations (B, T, d_mlp)
+#         print(f"Layer {layer_idx} activation shape (B, T, d_mlp): {neuron_acts_storage[layer_idx].shape}") 
 
 #     # Register hooks for all layers
 #     hooks = []
 #     for layer_idx in range(len(model.model.layers)):
-#         hook = model.model.layers[layer_idx].mlp.up_proj.register_forward_hook(
+#         hook = model.model.layers[layer_idx].mlp.down_proj.register_forward_hook(
 #             lambda module, input, output, l=layer_idx: hook_fn(module, input, output, l)
 #         )
 #         hooks.append(hook)
@@ -187,35 +98,50 @@ def compute_neuron_toxic_projection(model, tokenized_prompts, toxic_vector, batc
 
 #         for timestep in range(20):  # Generate 20 tokens
 #             with torch.inference_mode():
-#                 _, cache = model(batch, output_hidden_states=True, return_dict=True)
+#                 outputs = model(batch, output_hidden_states=True, return_dict=True)
+#                 cache = outputs.hidden_states  # Extract the hidden states
 
 #             # Ensure cache tensors are moved to the correct device
-#             cache = {k: v.to(device).detach().clone() for k, v in cache.items()}
+#             cache = [v.to(device).detach().clone() for v in cache]  # Convert to list if needed
 
-#             sampled = model.lm_head(cache.hidden_states[-1]).argmax(-1).detach().to(device)[:, -1]
+#             print(f"Number of hidden state layers in cache: {len(cache)}")
+#             for i, layer_cache in enumerate(cache):
+#                 print(f"Layer {i} hidden state shape: {layer_cache.shape}")  # (B, T, d)
+
+#             sampled = model.lm_head(cache[-1]).argmax(-1).detach().to(device)[:, -1] # Generate the next token (B, 1)
 
 #             for layer_idx in range(len(model.model.layers)):
 #                 if layer_idx in neuron_acts_storage:
-#                     neuron_acts = neuron_acts_storage[layer_idx]  # Get stored activations
+#                     neuron_acts = neuron_acts_storage[layer_idx]  # Get stored activations (B, T, d_mlp)
+#                     print(f"Neuron activations shape (B, T, d_mlp) at layer {layer_idx}: {neuron_acts.shape}")
 #                 else:
 #                     continue
 
-#                 value_vectors = model.model.layers[layer_idx].mlp.down_proj.to(device)
+#                 value_vectors = model.model.layers[layer_idx].mlp.down_proj.weight.to(device).T # (d_mlp, d)
+#                 print(f"Down_proj weight shape (d_mlp, d) at layer {layer_idx}: {value_vectors.shape}")
+
 
 #                 # Compute neuron outputs
-#                 neuron_outputs = neuron_acts.unsqueeze(-1) * value_vectors
-#                 neuron_projections = torch.matmul(neuron_outputs, toxic_vector.to(device)) / torch.norm(toxic_vector.to(device))
+#                 neuron_outputs = torch.einsum('btd,dm->btdm', neuron_acts.clone(), value_vectors.clone())  # (B, T, d_mlp, d) 
+#                 print(f"Neuron outputs shape (B, T, d_mlp, d) at layer {layer_idx}: {neuron_outputs.shape}")
 
-#                 for neuron_idx in range(neuron_projections.size(1)):
-#                     model_neuron_projections[(layer_idx, neuron_idx)].extend(neuron_projections[:, neuron_idx].tolist())
+#                 toxic_vector = toxic_vector.to(device, dtype=torch.float16).squeeze(0) # (d, )
+#                 print(f"Toxic vector shape (d, ): {toxic_vector.shape}")
+      
+#                 neuron_projections = torch.matmul(neuron_outputs, toxic_vector.to(device)) / torch.norm(toxic_vector.to(device)) # (B, T, d_mlp)
+#                 print(f"Neuron projections shape (B, T, d_mlp) at layer {layer_idx}: {neuron_projections.shape}")
 
-#             batch = torch.concat([batch, sampled.unsqueeze(-1)], dim=-1)
+#                 for neuron_idx in range(neuron_projections.size(2)):
+#                     print(f"Neuron {neuron_idx} projections shape (B, T) at layer {layer_idx}: {neuron_projections[:, :, neuron_idx].shape}")
+#                     model_neuron_projections[(layer_idx, neuron_idx)].extend(neuron_projections[:, :,neuron_idx].tolist()) # flatted (B, T) to (B*T) in list
+
+#             batch = torch.concat([batch, sampled.unsqueeze(-1)], dim=-1) # Add the generated token, (B, T+1)
 
 #     # Remove all hooks
 #     for hook in hooks:
 #         hook.remove()
 
-#     # Compute final average neuron projections
+#     # Compute final average neuron projections over B, T, and the 20 generated tokens
 #     avg_neuron_projections = {
 #         (layer_idx, neuron_idx): np.mean(projections)
 #         for (layer_idx, neuron_idx), projections in model_neuron_projections.items()
@@ -225,25 +151,104 @@ def compute_neuron_toxic_projection(model, tokenized_prompts, toxic_vector, batc
 
 
 
+def compute_neuron_toxic_projection(model, tokenized_prompts, toxic_vector, batch_size=64):
+    """
+    Computes memory-efficient neuron toxicity projections by extracting activations
+    after non-linearity using hooks on down_proj (second MLP weight matrix).
+    """
+    device = next(model.parameters()).device
+    sample_size = tokenized_prompts.size(0)
+    
+    # Precompute and normalize toxic vector
+    toxic_vector = toxic_vector.to(device, dtype=torch.float32).squeeze(0)
+    toxic_norm = torch.norm(toxic_vector)
+    print(f"Toxic vector shape (d, ): {toxic_vector.shape}")
+
+    # Storage for cumulative sums and counts
+    neuron_sums = defaultdict(lambda: torch.zeros(model.config.intermediate_size, dtype=torch.float32, device=device))
+    neuron_counts = defaultdict(lambda: torch.zeros(model.config.intermediate_size, dtype=torch.int32, device=device))
+
+    # Storage for activations extracted from inputs to down_proj
+    neuron_acts_storage = {}
+
+    def hook_fn(module, input, output, layer_idx):
+        neuron_acts_storage[layer_idx] = input[0].detach()  # Correct: capture input to down_proj
+
+    # Register hooks which will be triggered in forward pass
+    hooks = [
+        model.model.layers[layer_idx].mlp.down_proj.register_forward_hook(
+            lambda module, input, output, l=layer_idx: hook_fn(module, input, output, l)
+        )
+        for layer_idx in range(len(model.model.layers))
+    ]
+
+    print("Computing MLP neuron projections...")
+    for idx in tqdm(range(0, sample_size, batch_size)):
+        batch = tokenized_prompts[idx: idx + batch_size].to(device)
+
+        with torch.inference_mode():
+            generated_tokens = model.generate(batch, max_new_tokens=20)  # Generate full sequence
+            extended_batch = torch.cat([batch, generated_tokens[:, batch.shape[1]:]], dim=1)  # (B, T+20), append new tokens
+            outputs = model(extended_batch, output_hidden_states=True, return_dict=True)
+
+        # Process activations **only for generated tokens**
+        for layer_idx, neuron_acts in neuron_acts_storage.items():
+            print(f"Processing layer {layer_idx} activations with shape (B, T+20, d_mlp): {neuron_acts.shape}")
+            value_vectors = model.model.layers[layer_idx].mlp.down_proj.weight.T.to(device)  # (d_mlp, d)
+            print(f"Value vectors shape at layer {layer_idx} (d_mlp, d): {value_vectors.shape}")
+            
+            # First, compute scaling factor (d_mlp,)
+            v = torch.matmul(value_vectors.to(toxic_vector.dtype), toxic_vector) / toxic_norm  # (d_mlp)
+            print(f"Layer {layer_idx} value vector projection shape (d_mlp): {v.shape}")
+
+            # Ensure capturing the last 20 generated token activations
+            neuron_acts_gen = neuron_acts[:, -20:, :]  # (B, 20, d_mlp)
+            print(f"Extracting last 20 tokens (B, 20, d_mlp): {neuron_acts_gen.shape}")
+
+            # Scale activations (B, 20, d_mlp)
+            neuron_projections = neuron_acts_gen.clone() * v  # (B, 20, d_mlp)
+            print(f"Final neuron projections shape (B, 20, d_mlp): {neuron_projections.shape}")
+
+            # Accumulate sum and count for running mean per neuron
+            neuron_sums[layer_idx] += neuron_projections.sum(dim=(0, 1))  # Sum over (B, 20)
+            neuron_counts[layer_idx] += neuron_projections.shape[0] * neuron_projections.shape[1]  # (B*20)
+            print(f"Updated neuron sums for layer {layer_idx} with shape (d_mlp): {neuron_sums[layer_idx].shape}")
+            print(f"Updated neuron counts for layer {layer_idx} with shape (d_mlp): {neuron_counts[layer_idx].shape}")
+
+    # Remove hooks
+    for hook in hooks:
+        hook.remove()
+
+    # Compute final average neuron projections per neuron
+    avg_neuron_projections = {
+        (layer_idx, neuron_idx): (neuron_sums[layer_idx][neuron_idx] / neuron_counts[layer_idx][neuron_idx]).cpu().item()
+        for layer_idx in neuron_sums
+        for neuron_idx in range(neuron_sums[layer_idx].shape[0])
+    }
+
+    print("Final averaged neuron projections computed.")
+    return avg_neuron_projections
+
+
+
 
 
 # Save results to csv file
 def save_neuron_projections_to_csv(avg_neuron_projections, model_name):
-    # Convert the dictionary to a list of tuples (layer_idx, neuron_idx, projection_value)
+    """Saves the neuron projection data to a CSV file."""
+    # Convert dictionary to list of dictionaries
     data = [
         {"layer_idx": layer_idx, "neuron_idx": neuron_idx, "projection_value": projection}
         for (layer_idx, neuron_idx), projection in avg_neuron_projections.items()
     ]
 
-    # Create a pandas DataFrame
-    df = pd.DataFrame(data)
-
-    # Save the DataFrame to a CSV file
+    # Create a DataFrame
+    df = pd.DataFrame(data, columns=["layer_idx", "neuron_idx", "projection_value"])
+    
+    # Save to CSV
     filename = f"{model_name}_neuron_projections.csv"
     df.to_csv(filename, index=False)
     print(f"Neuron projections saved to {filename}")
-
-
 
 
 

@@ -15,8 +15,8 @@ from sklearn.metrics import accuracy_score
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Change as needed
-MODEL_NAME = "meta-llama/Llama-2-7b-hf" # "google/gemma-2-2b" #"meta-llama/Llama-3.1-8B" # "mistralai/Mistral-7B-v0.1" # "google/gemma-2-2b","gpt2-medium", "meta-llama/Llama-3.1-8B"
-PROBE_NAME = "llama2_probe.pt"
+MODEL_NAME = "meta-llama/Llama-3.1-8B" # "google/gemma-2-2b" #"meta-llama/Llama-3.1-8B" # "mistralai/Mistral-7B-v0.1" # "google/gemma-2-2b","gpt2-medium", "meta-llama/Llama-3.1-8B"
+PROBE_NAME = "llama3_probe_new.pt"
 BATCH_SIZE = 128  
 
 # Load tokenizer and model
