@@ -80,6 +80,8 @@ def generate_default(model, data, config):
         "pred_text": all_output_text,
     }
 
+
+
 # def generate_default(model, data, config):
 #     """
 #     Do not intervene.

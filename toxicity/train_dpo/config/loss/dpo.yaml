@@ -6,7 +6,7 @@ name: dpo
 beta: 0.1 
 
 # KL divergence weight; used to regularize policy updates
-kl_gamma: 0.3 # 0.02 # 0.1 # 0.2
+kl_gamma: 0.1 # 0.02 # 0.1 # 0.2 # 0.25
 
 # if true, use a uniform (maximum entropy) reference model
 reference_free: false
