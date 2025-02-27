@@ -5,7 +5,7 @@ import json
 import torch
 from tabulate import tabulate
 from datasets import load_dataset
-from transformers import AutoModelForCausalLM, AutoTokenizer, GPT2Tokenizer, AutoConfig, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer, GPT2Tokenizer
 # from transformer_lens import HookedTransformer
 
 
@@ -84,23 +84,16 @@ def load_model(config):
         state_dict = torch.load(state_dict_path)["state"]
 
     # Load model config
-    model_config = AutoConfig.from_pretrained(model_name)
+    # model_config = AutoConfig.from_pretrained(model_name)
 
-    # Apply 8-bit quantization only for LLaMA 3 models
-    if "llama-3" in model_name.lower():
-        quantization_config = BitsAndBytesConfig(load_in_8bit=True)
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name, quantization_config=quantization_config, state_dict=state_dict
-        )
-    else:
-        model = AutoModelForCausalLM.from_pretrained(
+    model = AutoModelForCausalLM.from_pretrained(
             model_name, state_dict=state_dict
-        ).to(config["device"])
+            ).to(config["device"])
 
-    # Distribute model across multiple GPUs if available (except for 8-bit models)
-    if torch.cuda.device_count() > 1 and not "llama-3" in model_name.lower():
-        print(f"Using {torch.cuda.device_count()} GPUs!")
-        model = torch.nn.DataParallel(model)
+    # Distribute model across multiple GPUs if available 
+    # if torch.cuda.device_count() > 1:
+    #     print(f"Using {torch.cuda.device_count()} GPUs!")
+    #     model = torch.nn.DataParallel(model)
 
     # Load tokenizer
     if tokenizer_name.startswith("gpt2"):
@@ -112,6 +105,7 @@ def load_model(config):
         tokenizer.padding_side = "left"
 
     return model, tokenizer
+
 
 
 

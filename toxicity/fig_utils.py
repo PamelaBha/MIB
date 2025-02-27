@@ -8,7 +8,7 @@ import einops
 from transformer_lens import (
     HookedTransformer,
 )
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, GPT2Tokenizer, BitsAndBytesConfig
 
 
 def convert(orig_state_dict, cfg):
@@ -94,6 +94,54 @@ def load_hooked(model_name, weights_path):
     model.tokenizer.padding_side = "left"
     model.tokenizer.pad_token_id = model.tokenizer.eos_token_id
     return model
+
+
+
+def load_model(config):
+    """
+    Load model, tokenizer and distribute across multiple GPUs if available.
+    """
+    assert "model_or_path" in config
+    assert "tokenizer" in config
+
+    tokenizer_name = config["tokenizer"]
+    model_name = config["model_or_path"]
+    state_dict_path = config.get("state_dict_path")
+    state_dict = None
+
+    if state_dict_path is not None:
+        state_dict = torch.load(state_dict_path)["state"]
+
+    # Load model config
+    # model_config = AutoConfig.from_pretrained(model_name)
+
+    # Apply 8-bit quantization only for LLaMA 3 models
+    if "llama-3" in model_name.lower():
+        quantization_config = BitsAndBytesConfig(load_in_8bit=True)
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name, quantization_config=quantization_config, state_dict=state_dict
+        )
+    else:
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name, state_dict=state_dict
+            ).to(config["device"])
+
+    # Distribute model across multiple GPUs if available 
+    if torch.cuda.device_count() > 1:
+        print(f"Using {torch.cuda.device_count()} GPUs!")
+        model = torch.nn.DataParallel(model)
+
+    # Load tokenizer
+    if tokenizer_name.startswith("gpt2"):
+        tokenizer = GPT2Tokenizer.from_pretrained(tokenizer_name)
+        tokenizer.padding_side = "left"
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+        tokenizer.pad_token_id = tokenizer.eos_token_id
+        tokenizer.padding_side = "left"
+
+    return model, tokenizer
+
 
 
 

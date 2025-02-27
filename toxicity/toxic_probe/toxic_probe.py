@@ -15,22 +15,28 @@ from sklearn.metrics import accuracy_score
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Change as needed
-MODEL_NAME = "meta-llama/Llama-3.1-8B" # "google/gemma-2-2b" #"meta-llama/Llama-3.1-8B" # "mistralai/Mistral-7B-v0.1" # "google/gemma-2-2b","gpt2-medium", "meta-llama/Llama-3.1-8B"
-PROBE_NAME = "llama3_probe_new.pt"
-BATCH_SIZE = 128  
+MODEL_NAME = "google/gemma-2-2b" # google/gemma-7b # "google/gemma-2-2b" #"meta-llama/Llama-3.1-8B" # "mistralai/Mistral-7B-v0.1" # "google/gemma-2-2b","gpt2-medium", "meta-llama/Llama-3.1-8B"
+PROBE_NAME = "gemma_2_2b_probe.pt" # "gemma_probe.pt" # "llama3_probe.pt" # "mistral_probe.pt" 
+BATCH_SIZE = 64 # Control memory usage
 
 # Load tokenizer and model
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForCausalLM.from_pretrained(MODEL_NAME).to(device)
-model.eval()  # Set model to evaluation mode
+# Load model with float32 precision
+model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, torch_dtype=torch.float32).to(device)
+
+# Set model to evaluation mode
+model.eval()
+
+tokenizer.pad_token_id = tokenizer.eos_token_id
+tokenizer.padding_side = "left"
 
 # Ensure tokenizer has a padding token
-if tokenizer.pad_token is None:
-    if tokenizer.eos_token:
-        tokenizer.pad_token = tokenizer.eos_token
-    else:
-        tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        model.resize_token_embeddings(len(tokenizer))  # Resize embeddings to account for new token
+# if tokenizer.pad_token is None:
+#     # if tokenizer.eos_token:
+#     tokenizer.pad_token = tokenizer.eos_token
+    # else:
+    #     tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+    #     model.resize_token_embeddings(len(tokenizer))  # Resize embeddings to account for new token
 
 # Load Jigsaw Toxicity dataset
 dataset = load_dataset("jigsaw_toxicity_pred", data_dir="/data/kebl6672/dpo-toxic-general/data/jigsaw-toxic-comment-classification-challenge")
@@ -60,27 +66,76 @@ def extract_features(texts):
     """ Extracts residual stream features in batches. """
     all_features = []
     
-    for i in range(0, len(texts), BATCH_SIZE):
-        batch_texts = texts[i : i + BATCH_SIZE]
-        inputs = tokenizer(batch_texts, truncation=True, padding="max_length", max_length=128, return_tensors="pt")
+    for i, text in enumerate(texts):
+        inputs = tokenizer([text], truncation=True, padding="max_length", max_length=128, return_tensors="pt")
         inputs = {k: v.to(device, non_blocking=True) for k, v in inputs.items()}  # Move batch to GPU
 
         with torch.no_grad():
             outputs = model(**inputs, output_hidden_states=True)
-            last_hidden_states = outputs.hidden_states[-1]  # Last layer activations
-            avg_hidden_state = last_hidden_states.mean(dim=1).cpu().numpy()  # Mean across all timesteps
+
+            # Check NaNs in Layer 1
+            nan_count = torch.isnan(outputs.hidden_states[1]).sum().item()
+            if nan_count > 0:
+                print(f"WARNING: NaNs detected in Layer 1 for input {i}")
+                print("Problematic text:", text)
+                print("Tokenized input IDs:", inputs['input_ids'])
+                print("Tokenized attention mask:", inputs['attention_mask'])
+
+            last_hidden_states = outputs.hidden_states[-1].to(torch.float32)
+            avg_hidden_state = last_hidden_states.mean(dim=1).cpu().numpy()
 
         all_features.append(avg_hidden_state)
+
         del inputs, outputs, last_hidden_states  # Free memory
         torch.cuda.empty_cache()  # Clear CUDA cache
     
     return np.vstack(all_features)
+
+
+# def extract_features(texts):
+#     """ Extracts residual stream features in batches. """
+#     all_features = []
+    
+#     for i in range(0, len(texts), BATCH_SIZE):
+#         batch_texts = texts[i : i + BATCH_SIZE]
+#         inputs = tokenizer(batch_texts, truncation=True, padding="max_length", max_length=128, return_tensors="pt")
+#         inputs = {k: v.to(device, non_blocking=True) for k, v in inputs.items()}  # Move batch to GPU
+
+#         # with torch.no_grad():
+#         #     outputs = model(**inputs, output_hidden_states=True)
+#             # last_hidden_states = outputs.hidden_states[-1]  # Last layer activations
+#             # # avg_hidden_state = last_hidden_states.mean(dim=1).cpu().numpy()  # Mean across all timesteps
+            
+#             # # Debug: Check for NaN values in hidden states
+#             # nan_count = torch.isnan(last_hidden_states).sum().item()
+#             # if nan_count > 0:
+#             #     print(f"WARNING: Found {nan_count} NaNs in hidden states!")
+            
+#             last_hidden_states = outputs.hidden_states[-1]  # Last layer activations
+#             # Convert to float32 explicitly to avoid BF16/FP16 issues
+#             last_hidden_states = last_hidden_states.to(torch.float32)
+
+#             # Compute mean across all timesteps
+#             avg_hidden_state = last_hidden_states.mean(dim=1).cpu().numpy()
+
+#         all_features.append(avg_hidden_state)
+#         del inputs, outputs, last_hidden_states  # Free memory
+#         torch.cuda.empty_cache()  # Clear CUDA cache
+    
+#     return np.vstack(all_features)
 
 # Extract features for training and validation
 print("Extracting train features...")
 train_features = extract_features(train_texts)
 print("Extracting validation features...")
 val_features = extract_features(val_texts)
+
+# Debug: Check for NaN values in extracted features
+if np.isnan(train_features).sum() > 0:
+    print("WARNING: NaN values detected in train features!")
+
+if np.isnan(val_features).sum() > 0:
+    print("WARNING: NaN values detected in validation features!")
 
 # # Handle NaN values: Replace NaNs with 0
 # train_features = np.nan_to_num(train_features)

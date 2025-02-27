@@ -140,7 +140,7 @@ def main(config: DictConfig):
         cache_dir=get_local_dir(config.local_dirs),
         low_cpu_mem_usage=True,
         torch_dtype=policy_dtype,
-        attn_implementation="eager" if is_gemma or is_llama else "sdpa",  # 🔴 Use 'eager' for Gemma, 'sdpa' for others
+        attn_implementation="eager" if is_gemma or is_llama else "sdpa",  # Use 'eager' for Gemma, 'sdpa' for others
         **model_kwargs,
     )
     disable_dropout(policy)

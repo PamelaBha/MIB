@@ -18,8 +18,7 @@ from collections import defaultdict
 from tqdm import tqdm
 
 import matplotlib.pyplot as plt
-# from fig_utils import load_model
-from eval_interventions.eval_utils import load_model
+from fig_utils import load_model
 
 device = torch.device("cuda") 
 ROOT_DIR = '/data/kebl6672/dpo-toxic-general/checkpoints'
@@ -30,17 +29,17 @@ probe_name = "llama3_probe.pt" # "mistral_probe.pt" # "gpt2_probe.pt" # "llama3_
 model_short_name = "llama3" # "mistral" #"gpt2"
 
 # Load the tokenizer and model
-config = {"model_or_path": model_name, "tokenizer": model_name, "device": "cuda"}
-model, tokenizer = load_model(config)
+# config = {"model_or_path": model_name, "tokenizer": model_name, "device": "cuda"}
+# model, tokenizer = load_model(config)
 
 # Load the DPO-ed model
-# config_dpo = {
-#     "model_or_path": model_name,
-#     "tokenizer": model_name,
-#     "device": "cuda",
-#     "state_dict_path": os.path.join(ROOT_DIR, dpo_model_name),
-# }
-# dpo_model, tokenizer = load_model(config_dpo)
+config_dpo = {
+    "model_or_path": model_name,
+    "tokenizer": model_name,
+    "device": "cuda",
+    "state_dict_path": os.path.join(ROOT_DIR, dpo_model_name),
+}
+dpo_model, tokenizer = load_model(config_dpo)
 
 
 # # Load the tokenizer 
@@ -198,7 +197,7 @@ def save_neuron_projections_to_csv(avg_neuron_projections, avg_neuron_activation
     df = pd.DataFrame(data, columns=["layer_idx", "neuron_idx", "projection_value", "activation_value"])
     
     # Save to CSV
-    filename = f"{model_name}_neuron_projections.csv"
+    filename = f"{model_name}_neuron_projections_new.csv"
     df.to_csv(filename, index=False)
     print(f"Neuron projections and activations saved to {filename}")
 
@@ -236,7 +235,7 @@ def compute_all_neuron_cossims(model, toxic_vector, model_name):
 
     # Convert list to DataFrame and save
     df = pd.DataFrame(model_neuron_cossims)
-    csv_filename = f"{model_name}_neuron_cossims.csv"
+    csv_filename = f"{model_name}_neuron_cossims_new.csv"
     df.to_csv(csv_filename, index=False)
     # print(f"Cosine similarities saved to {csv_filename}")
 
@@ -249,15 +248,15 @@ def compute_all_neuron_cossims(model, toxic_vector, model_name):
 def main():
     """Main execution pipeline."""
     # Compute and save neuron projections for the base model
-    print("Processing pre-trained model...")
-    avg_neuron_projections, avg_neuron_activations = compute_neuron_toxic_projection(model, tokenized_prompts, toxic_vector)
-    save_neuron_projections_to_csv(avg_neuron_projections, avg_neuron_activations, model_short_name)
-    compute_all_neuron_cossims(model, toxic_vector, model_short_name)
+    # print("Processing pre-trained model...")
+    # avg_neuron_projections, avg_neuron_activations = compute_neuron_toxic_projection(model, tokenized_prompts, toxic_vector)
+    # save_neuron_projections_to_csv(avg_neuron_projections, avg_neuron_activations, model_short_name)
+    # compute_all_neuron_cossims(model, toxic_vector, model_short_name)
     # Compute and save neuron projections for the DPO-trained model
     print("Processing DPO model...")
-    # avg_neuron_projections_dpo, avg_neuron_activations_dpo = compute_neuron_toxic_projection(dpo_model, tokenized_prompts, toxic_vector)
-    # save_neuron_projections_to_csv(avg_neuron_projections_dpo, avg_neuron_activations_dpo, model_short_name + "_dpo")
-    # compute_all_neuron_cossims(dpo_model, toxic_vector, model_short_name + "_dpo")
+    avg_neuron_projections_dpo, avg_neuron_activations_dpo = compute_neuron_toxic_projection(dpo_model, tokenized_prompts, toxic_vector)
+    save_neuron_projections_to_csv(avg_neuron_projections_dpo, avg_neuron_activations_dpo, model_short_name + "_dpo")
+    compute_all_neuron_cossims(dpo_model, toxic_vector, model_short_name + "_dpo")
 
 
 if __name__ == "__main__":
