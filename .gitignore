@@ -2,6 +2,7 @@
 checkpoints/*
 data/*
 outputs/*
+ignore/*
 svd_projected_tokens_split0.log
 svd_projected_tokens.log
 api_key

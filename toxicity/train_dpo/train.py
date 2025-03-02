@@ -37,8 +37,8 @@ OmegaConf.register_new_resolver(
 print("CUDA_VISIBLE_DEVICES:", os.environ["CUDA_VISIBLE_DEVICES"])
 print("Available GPUs:", torch.cuda.device_count())
 
-device = torch.device("cuda")  # Ensure device selection respects env variable
-print("Using device:", device)
+# device = torch.device("cuda")  # Ensure device selection respects env variable
+# print("Using device:", device)
 
 
 def worker_main(
@@ -128,6 +128,7 @@ def main(config: DictConfig):
     model_kwargs = (
         {"device_map": "auto"} if config.trainer == "BasicTrainer" else {} # balanced
     )
+    # model_kwargs = {"device_map": "cuda:1"}  # Force everything onto one GPU
     policy_dtype = getattr(torch, config.model.policy_dtype)
 
     # Determine whether the model is a Gemma model
@@ -145,6 +146,9 @@ def main(config: DictConfig):
     )
     disable_dropout(policy)
 
+    # device = torch.device("cuda:1")  
+    # policy.to(device)
+    # policy.get_input_embeddings().to(device)
 
     if config.loss.name == "dpo":
         print("building reference model")
@@ -157,6 +161,9 @@ def main(config: DictConfig):
             **model_kwargs,
         )
         disable_dropout(reference_model)
+
+        # reference_model.to(device)
+        # reference_model.get_input_embeddings().to(device)
     else:
         reference_model = None
 

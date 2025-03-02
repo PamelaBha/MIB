@@ -17,12 +17,20 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Change as needed
 MODEL_NAME = "google/gemma-2-2b" # google/gemma-7b # "google/gemma-2-2b" #"meta-llama/Llama-3.1-8B" # "mistralai/Mistral-7B-v0.1" # "google/gemma-2-2b","gpt2-medium", "meta-llama/Llama-3.1-8B"
 PROBE_NAME = "gemma_2_2b_probe.pt" # "gemma_probe.pt" # "llama3_probe.pt" # "mistral_probe.pt" 
-BATCH_SIZE = 64 # Control memory usage
+BATCH_SIZE = 128 # Control memory usage
 
 # Load tokenizer and model
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 # Load model with float32 precision
-model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, torch_dtype=torch.float32).to(device)
+# Determine whether the model is a Gemma or LLaMA model
+is_gemma = "gemma" in MODEL_NAME.lower()
+
+# Load model with appropriate attention implementation
+model = AutoModelForCausalLM.from_pretrained(
+    MODEL_NAME,
+    torch_dtype=torch.float32,
+    attn_implementation="eager" if is_gemma else "sdpa"
+).to(device)
 
 # Set model to evaluation mode
 model.eval()

@@ -138,18 +138,18 @@ def hook_subtract(model, config):
             Applies an intervention by subtracting `vec` scaled by `_scale` from the model's output.
             """
             try:
-                device = output.device  # Get the device of the output tensor
-                _vec = vec.clone().to(device)  # Move vec to the same device as output
+                device = output.device  
+                _vec = vec.clone().to(device)  
 
                 # print(f"[DEBUG] Output shape: {output.shape}")
                 # print(f"[DEBUG] Vec shape before adjustment: {_vec.shape} (on device: {_vec.device})")
 
-                # **Ensure _vec is 3D: (1, 1, hidden_dim)**
-                _vec = _vec.squeeze()  # Remove unnecessary dimensions
+                # Ensure _vec is 3D: (1, 1, hidden_dim)
+                _vec = _vec.squeeze()  
                 if _vec.dim() == 1:  # (hidden_dim,) -> expand to (1, 1, hidden_dim)
                     _vec = _vec.unsqueeze(0).unsqueeze(0)
 
-                # **Match _vec dimensions to output dimensions**
+                # Match _vec dimensions to different models' output dimensions 
                 if output.dim() == 2:  # (batch_size, hidden_dim)
                     _vec = _vec.squeeze(1)  # Remove sequence dimension
                     _vec = _vec.expand(output.shape[0], -1)  # Expand across batch
@@ -163,22 +163,22 @@ def hook_subtract(model, config):
                 else:
                     raise RuntimeError(f"Unexpected output shape: {output.shape}, Vec shape: {_vec.shape}")
 
-                # print(f"[DEBUG] Vec shape after adjustment: {_vec.shape}")
+                # print(f"[DEBUG] Scale factor: {_scale}, Vec shape after adjustment: {_vec.shape}, Vec norm: {vec.norm().item()}")
 
-                output -= _scale * _vec  # Apply subtraction
-                return output  # Ensure function returns output
+                output -= _scale * _vec 
+                return output  
 
             except Exception as e:
                 print(f"[ERROR] Hook function encountered an error: {e}")
                 return output  # Ensure output is always returned
 
-        print(f"[DEBUG] Hook function created successfully!")  # Ensure the function is created
+        print(f"[DEBUG] Hook function created successfully!")  
         return hook
 
     hooks = []
     for layer in subtract_from:
         try:
-            hook_fn = patch(intervene_vector, scale)  # Ensure patch() actually returns a function
+            hook_fn = patch(intervene_vector, scale) 
 
             if "gemma" in model.__class__.__name__.lower() or "llama" in model.__class__.__name__.lower():
                 hook = model.model.layers[layer].mlp.register_forward_hook(hook_fn)
@@ -195,7 +195,7 @@ def hook_subtract(model, config):
             if hook is None:
                 print(f"[ERROR] Hook registration failed for layer {layer}!")
             else:
-                print(f"[DEBUG] Hook successfully registered for layer {layer}!")
+                print(f"[DEBUG] Hook successfully registered for layer {layer}, Scale: {scale}") 
 
             hooks.append(hook)
 
@@ -243,7 +243,7 @@ def scale_top_key_vectors(model, config):
         for tensor in top_key_vecs:
             tensor *= scale_factor
 
-    # Return model and an empty list of hooks for consistency
+    # For consistency, return model and an empty list of hooks
     return model, [] 
 
 

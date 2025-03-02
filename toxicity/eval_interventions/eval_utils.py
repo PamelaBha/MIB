@@ -25,6 +25,7 @@ def tokenize(tokenizer, data, config):
             padding=True,
             truncation=True,
             return_tensors="pt",
+            return_attention_mask=True,
         )
     elif max_prompt_size is None and len(prompts) == 1:
         tokenized = tokenizer(
@@ -51,6 +52,7 @@ def tokenize(tokenizer, data, config):
             padding=True,
             truncation=True,
             return_tensors="pt",
+            return_attention_mask=True,
         )
         tokenizer.padding_side = orig_padding_side
 
@@ -85,6 +87,31 @@ def load_model(config):
 
     # Load model config
     # model_config = AutoConfig.from_pretrained(model_name)
+
+    # # Detect if using a Gemma model
+    # is_gemma = "gemma" in model_name.lower()
+
+    # # Load model with appropriate attention handling
+    # model = AutoModelForCausalLM.from_pretrained(
+    #     model_name,
+    #     state_dict=state_dict,
+    #     torch_dtype=torch.float32,
+    #     attn_implementation="eager" if is_gemma else "sdpa"
+    # ).to(config["device"])
+
+    # # Load tokenizer
+    # if tokenizer_name.startswith("gpt2"):
+    #     tokenizer = GPT2Tokenizer.from_pretrained(tokenizer_name)
+    #     tokenizer.padding_side = "left"
+    #     tokenizer.pad_token = tokenizer.eos_token  # GPT-2 lacks a native pad token
+    #     tokenizer.pad_token_id = tokenizer.eos_token_id
+    # else:
+    #     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+    #     tokenizer.pad_token_id = tokenizer.eos_token_id
+    #     tokenizer.padding_side = "left"
+
+    # return model, tokenizer
+
 
     model = AutoModelForCausalLM.from_pretrained(
             model_name, state_dict=state_dict
