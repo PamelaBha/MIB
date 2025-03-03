@@ -300,7 +300,7 @@ def main():
     config = {
         "model": {
             "model_or_path": "google/gemma-2-2b", #"meta-llama/Llama-3.1-8B", #"google/gemma-2-9b", # "gpt2-medium", # "meta-llama/Llama-3.1-8B", # "google/gemma-2-2b", # "mistralai/Mistral-7B-v0.1"
-            # "state_dict_path": os.path.join(CKPT_DIR, "gemma2_2b_dpo_0.02.pt"), # Use the DPO model # dpo.pt #mistral_dpo.pt
+            "state_dict_path": os.path.join(CKPT_DIR, "gemma2_2b_dpo_0.05.pt"), # Use the DPO model # dpo.pt #mistral_dpo.pt
             "tokenizer": "google/gemma-2-2b", # "mistralai/Mistral-7B-v0.1", # "meta-llama/Llama-3.1-8B", # "meta-llama/Llama-2-7b-hf", #"google/gemma-2-2b-it", #"mistralai/Mistral-7B-v0.1",#"google/gemma-2-2b", #"meta-llama/Meta-Llama-3-8B", # gpt2-medium
             "batch_size": 128,
             "device": device if torch.cuda.is_available() else "cpu",
@@ -338,7 +338,7 @@ def main():
             },
         ],
         "interventions": [
-            # {"method": "noop", "params": {}},
+            {"method": "noop", "params": {}},
             # {
             #     "method": "subtraction",
             #     "params": {
@@ -349,15 +349,15 @@ def main():
             #         "scales": [20],
             #     }
             # },
-            {
-                "method": "subtraction",
-                "params": {
-                    "type": "toxic_probe",
-                    "scales": [1],
-                    "subtract_from": [[25]], # 23 (gpt2) # 31 (llama3, mistral) # 41 (gemma2 9b) # 25 (gemma2 2b)
-                    "datapath": os.path.join(CKPT_DIR, "gemma2_2b_probe.pt"),
-                }
-            },
+            # {
+            #     "method": "subtraction",
+            #     "params": {
+            #         "type": "toxic_probe",
+            #         "scales": [1],
+            #         "subtract_from": [[25]], # 23 (gpt2) # 31 (llama3, mistral) # 41 (gemma2 9b) # 25 (gemma2 2b)
+            #         "datapath": os.path.join(CKPT_DIR, "gemma2_2b_probe.pt"),
+            #     }
+            # },
             # {
             #     "method": "subtraction",
             #     "params": {
