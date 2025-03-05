@@ -114,7 +114,7 @@ def load_model(config):
 
 
     model = AutoModelForCausalLM.from_pretrained(
-            model_name, state_dict=state_dict
+            model_name, state_dict=state_dict #, attn_implementation="eager"
             ).to(config["device"])
 
     # Distribute model across multiple GPUs if available 

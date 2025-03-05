@@ -38,14 +38,6 @@ model.eval()
 tokenizer.pad_token_id = tokenizer.eos_token_id
 tokenizer.padding_side = "left"
 
-# Ensure tokenizer has a padding token
-# if tokenizer.pad_token is None:
-#     # if tokenizer.eos_token:
-#     tokenizer.pad_token = tokenizer.eos_token
-    # else:
-    #     tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-    #     model.resize_token_embeddings(len(tokenizer))  # Resize embeddings to account for new token
-
 # Load Jigsaw Toxicity dataset
 dataset = load_dataset("jigsaw_toxicity_pred", data_dir="/data/kebl6672/dpo-toxic-general/data/jigsaw-toxic-comment-classification-challenge")
 

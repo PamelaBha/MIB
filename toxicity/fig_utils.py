@@ -121,6 +121,11 @@ def load_model(config):
         model = AutoModelForCausalLM.from_pretrained(
             model_name, quantization_config=quantization_config, state_dict=state_dict
         )
+    elif "gemma" in model_name.lower():
+        # Load model with correct attention implementation
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name, state_dict=state_dict, 
+            attn_implementation="eager").to(config["device"])
     else:
         model = AutoModelForCausalLM.from_pretrained(
             model_name, state_dict=state_dict
