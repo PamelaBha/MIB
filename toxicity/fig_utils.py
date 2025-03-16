@@ -9,6 +9,7 @@ from transformer_lens import (
     HookedTransformer,
 )
 from transformers import AutoModelForCausalLM, AutoTokenizer, GPT2Tokenizer, BitsAndBytesConfig
+from accelerate import infer_auto_device_map
 
 
 def convert(orig_state_dict, cfg):
@@ -99,7 +100,7 @@ def load_hooked(model_name, weights_path):
 
 def load_model(config):
     """
-    Load model, tokenizer and distribute across multiple GPUs if available.
+    Load model, tokenizer, and distribute across multiple GPUs using DataParallel.
     """
     assert "model_or_path" in config
     assert "tokenizer" in config
@@ -107,46 +108,132 @@ def load_model(config):
     tokenizer_name = config["tokenizer"]
     model_name = config["model_or_path"]
     state_dict_path = config.get("state_dict_path")
-    state_dict = None
+    state_dict = torch.load(state_dict_path, map_location="cpu")["state"] if state_dict_path else None
 
-    if state_dict_path is not None:
-        state_dict = torch.load(state_dict_path)["state"]
+    # Define model loading options
+    model_kwargs = {"state_dict": state_dict}
 
-    # Load model config
-    # model_config = AutoConfig.from_pretrained(model_name)
-
-    # Apply 8-bit quantization only for LLaMA 3 models
     if "llama-3" in model_name.lower():
-        quantization_config = BitsAndBytesConfig(load_in_8bit=True)
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name, quantization_config=quantization_config, state_dict=state_dict
-        )
+        model_kwargs["quantization_config"] = BitsAndBytesConfig(load_in_8bit=True)
     elif "gemma" in model_name.lower():
-        # Load model with correct attention implementation
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name, state_dict=state_dict, 
-            attn_implementation="eager").to(config["device"])
-    else:
-        model = AutoModelForCausalLM.from_pretrained(
-            model_name, state_dict=state_dict
-            ).to(config["device"])
+        model_kwargs["attn_implementation"] = "eager"
 
-    # Distribute model across multiple GPUs if available 
-    if torch.cuda.device_count() > 1:
-        print(f"Using {torch.cuda.device_count()} GPUs!")
-        model = torch.nn.DataParallel(model)
+    # Load model ONCE
+    model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
+
+    # Force model to use a single GPU
+    device = torch.device("cuda:0")
+
+    # Use DataParallel if multiple GPUs are available
+    # if torch.cuda.device_count() > 1:
+    #     print(f"Using {torch.cuda.device_count()} GPUs!")
+    #     model = torch.nn.DataParallel(model)  
 
     # Load tokenizer
-    if tokenizer_name.startswith("gpt2"):
-        tokenizer = GPT2Tokenizer.from_pretrained(tokenizer_name)
-        tokenizer.padding_side = "left"
-    else:
-        tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
-        tokenizer.pad_token_id = tokenizer.eos_token_id
-        tokenizer.padding_side = "left"
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+    tokenizer.pad_token_id = tokenizer.eos_token_id
+    tokenizer.padding_side = "left"
 
     return model, tokenizer
 
+
+
+def split_map_location(storage, location):
+    """
+    Evenly distributes tensors across cuda:0 and cuda:1 while loading state_dict.
+    """
+    gpu_id = 0 if len(storage.size()) == 0 or storage.size(0) % 2 == 0 else 1 
+    print(storage)
+    return f"cuda:{gpu_id}"
+
+
+def load_8bit(config):
+    """
+    Load model, tokenizer, and optimize memory usage with 8-bit quantization.
+    """
+    assert "model_or_path" in config
+    assert "tokenizer" in config
+
+    tokenizer_name = config["tokenizer"]
+    model_name = config["model_or_path"]
+    state_dict_path = config.get("state_dict_path")
+    state_dict = torch.load(state_dict_path, map_location="cpu")["state"] if state_dict_path else None
+
+    # Enable 4-bit quantization for memory
+    quantization_config = BitsAndBytesConfig(
+    load_in_8bit=True, 
+    bnb_8bit_compute_dtype=torch.float16,  
+    bnb_8bit_use_double_quant=True
+    ) 
+
+    # Define model loading options
+    model_kwargs = {
+        "state_dict": state_dict,
+        "quantization_config": quantization_config
+    }
+
+    # Gemma-specific attention
+    if "gemma" in model_name.lower():
+        model_kwargs["attn_implementation"] = "eager"
+
+    # Load model with 4-bit
+    model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs) 
+
+    # Force model to use a single GPU
+    device = torch.device("cuda:0")
+
+    # Load tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+    tokenizer.pad_token_id = tokenizer.eos_token_id
+    tokenizer.padding_side = "left"
+
+    # print(f"Model loaded with 8-bit quantization on available GPUs.")
+    return model, tokenizer
+
+
+
+def load_4bit(config):
+    """
+    Load model, tokenizer, and optimize memory usage with 4-bit quantization.
+    """
+    assert "model_or_path" in config
+    assert "tokenizer" in config
+
+    tokenizer_name = config["tokenizer"]
+    model_name = config["model_or_path"]
+    state_dict_path = config.get("state_dict_path")
+    state_dict = torch.load(state_dict_path, map_location="cpu")["state"] if state_dict_path else None
+
+    # Enable 4-bit quantization for memory
+    quantization_config = BitsAndBytesConfig(
+    load_in_4bit=True, 
+    bnb_4bit_compute_dtype=torch.float16,  
+    bnb_4bit_use_double_quant=True
+    ) 
+
+    # Define model loading options
+    model_kwargs = {
+        "state_dict": state_dict,
+        "quantization_config": quantization_config
+    }
+
+    # Gemma-specific attention
+    if "gemma" in model_name.lower():
+        model_kwargs["attn_implementation"] = "eager"
+
+    # Load model with 4-bit
+    model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs) 
+
+    # Force model to use a single GPU
+    device = torch.device("cuda:0")
+
+    # Load tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+    tokenizer.pad_token_id = tokenizer.eos_token_id
+    tokenizer.padding_side = "left"
+
+    # print(f"Model loaded with 4-bit quantization on available GPUs.")
+    return model, tokenizer
 
 
 

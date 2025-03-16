@@ -24,23 +24,23 @@ device = torch.device("cuda")
 ROOT_DIR = '/data/kebl6672/dpo-toxic-general/checkpoints'
 
 model_name = "google/gemma-2-2b" # "mistralai/Mistral-7B-v0.1" # "meta-llama/Llama-3.1-8B" # "gpt2-medium" # "meta-llama/Llama-3.1-8B" # "google/gemma-2-2b", # "gpt2-medium", # "mistralai/Mistral-7B-v0.1",
-dpo_model_name = "gemma2_2b_dpo_0.05.pt" # "llama3_dpo_0.1_attn_final.pt" # "mistral_dpo.pt" # "gpt2_dpo.pt" # "llama3_dpo_2.pt"
+dpo_model_name = "gemma2_2b_dpo_0.05_final.pt" # "llama3_dpo_0.1_attn_final.pt" # "mistral_dpo.pt" # "gpt2_dpo.pt" # "llama3_dpo_2.pt"
 probe_name = "gemma2_2b_probe.pt" # "mistral_probe.pt" # "gpt2_probe.pt" # "llama3_probe.pt"
 model_short_name = "gemma2" # "llama3" # "mistral" #"gpt2"
-BATCH_SIZE = 4 
+BATCH_SIZE = 16 
 
 ### Load the tokenizer and model
-config = {"model_or_path": model_name, "tokenizer": model_name, "device": "cuda"}
-model, tokenizer = load_model(config)
+# config = {"model_or_path": model_name, "tokenizer": model_name, "device": "cuda"}
+# model, tokenizer = load_model(config)
 
 ## Load the DPO-ed model
-# config_dpo = {
-#     "model_or_path": model_name,
-#     "tokenizer": model_name,
-#     "device": "cuda",
-#     "state_dict_path": os.path.join(ROOT_DIR, dpo_model_name),
-# }
-# dpo_model, tokenizer = load_model(config_dpo)
+config_dpo = {
+    "model_or_path": model_name,
+    "tokenizer": model_name,
+    "device": "cuda",
+    "state_dict_path": os.path.join(ROOT_DIR, dpo_model_name),
+}
+dpo_model, tokenizer = load_model(config_dpo)
 
 
 # Load the toxic probe vector
@@ -76,24 +76,24 @@ def compute_neuron_toxic_projection(model, tokenized_prompts, toxic_vector, batc
     device = next(model.parameters()).device
     sample_size = tokenized_prompts.size(0)
     
-    # Precompute and normalize toxic vector
+    # Normalize toxic vector
     toxic_vector = toxic_vector.to(device, dtype=torch.float16).squeeze(0)
     toxic_norm = torch.norm(toxic_vector) # A scalar
     print(f"Toxic vector shape (d, ): {toxic_vector.shape}")
 
-    # Storage for cumulative sums and counts
+    # Store cumulative sums and counts
     neuron_act_sums = defaultdict(lambda: torch.zeros(model.config.intermediate_size, dtype=torch.float16, device=device)) # m_i*v_i - (d)
     neuron_proj_sums = defaultdict(lambda: torch.zeros(model.config.intermediate_size, dtype=torch.float16, device=device)) # (m_i*v_i)*W - scalar
     neuron_counts = defaultdict(lambda: torch.zeros(model.config.intermediate_size, dtype=torch.int32, device=device))
     print(f"Dictionary size for each layer key (d_mlp): {model.config.intermediate_size}")
 
-    # Storage for activations extracted from inputs to down_proj
+    # Store activations extracted from inputs to down_proj
     neuron_acts_storage = {}
 
     def hook_fn(module, input, output, layer_idx):
         neuron_acts_storage[layer_idx] = input[0].detach()  # Capture INPUT to down_proj
 
-    # Register hooks which will be triggered in forward pass
+    # Register hooks - triggered in forward pass
     hooks = [
         model.model.layers[layer_idx].mlp.down_proj.register_forward_hook(
             lambda module, input, output, l=layer_idx: hook_fn(module, input, output, l)
@@ -176,7 +176,7 @@ def save_neuron_projections_to_csv(avg_neuron_projections, avg_neuron_activation
 
     df = pd.DataFrame(data, columns=["layer_idx", "neuron_idx", "projection_value", "activation_value"])
     
-    filename = f"{model_name}_neuron_projections_2.csv"
+    filename = f"{model_name}_neuron_projections_3.csv"
     df.to_csv(filename, index=False)
     print(f"Neuron projections and activations saved to {filename}")
 
@@ -210,7 +210,7 @@ def compute_all_neuron_cossims(model, toxic_vector, model_name):
         ])
 
     df = pd.DataFrame(model_neuron_cossims)
-    csv_filename = f"{model_name}_neuron_cossims_2.csv"
+    csv_filename = f"{model_name}_neuron_cossims_3.csv"
     df.to_csv(csv_filename, index=False)
     # print(f"Cosine similarities saved to {csv_filename}")
 
@@ -223,16 +223,16 @@ def compute_all_neuron_cossims(model, toxic_vector, model_name):
 def main():
     """Main execution pipeline."""
     ### Compute and save neuron projections for the base model
-    print("Processing pre-trained model...")
-    avg_neuron_projections, avg_neuron_activations = compute_neuron_toxic_projection(model, tokenized_prompts, toxic_vector)
-    save_neuron_projections_to_csv(avg_neuron_projections, avg_neuron_activations, model_short_name)
-    compute_all_neuron_cossims(model, toxic_vector, model_short_name)
+    # print("Processing pre-trained model...")
+    # avg_neuron_projections, avg_neuron_activations = compute_neuron_toxic_projection(model, tokenized_prompts, toxic_vector)
+    # save_neuron_projections_to_csv(avg_neuron_projections, avg_neuron_activations, model_short_name)
+    # compute_all_neuron_cossims(model, toxic_vector, model_short_name)
 
     ### Compute and save neuron projections for the DPO-trained model
-    # print("Processing DPO model...")
-    # avg_neuron_projections_dpo, avg_neuron_activations_dpo = compute_neuron_toxic_projection(dpo_model, tokenized_prompts, toxic_vector)
-    # save_neuron_projections_to_csv(avg_neuron_projections_dpo, avg_neuron_activations_dpo, model_short_name + "_dpo")
-    # compute_all_neuron_cossims(dpo_model, toxic_vector, model_short_name + "_dpo")
+    print("Processing DPO model...")
+    avg_neuron_projections_dpo, avg_neuron_activations_dpo = compute_neuron_toxic_projection(dpo_model, tokenized_prompts, toxic_vector)
+    save_neuron_projections_to_csv(avg_neuron_projections_dpo, avg_neuron_activations_dpo, model_short_name + "_dpo")
+    compute_all_neuron_cossims(dpo_model, toxic_vector, model_short_name + "_dpo")
 
 
 if __name__ == "__main__":
