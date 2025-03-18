@@ -352,59 +352,15 @@ def scale_top_value_vectors_with_positive_activations(model, config):
 
 
 
-# def assign_activations_to_neurons(model, config):
-#     """
-#     Modify the activation coefficients for specific neurons in different layers. Each entry in the config
-#     contains a tuple (layer_idx, neuron_idx, assigned_value), and one hook is registered per (layer, neuron) pair.
-#     """
-#     neuron_configs = config['neuron_configs']  # List of (layer_idx, neuron_idx, assigned_value)
-#     hook_timesteps = config["hook_timesteps"]
-
-#     def patch(neuron_idx, assigned_value):
-#         def hook(module, input, output):
-#             """
-#             Forward hook to assign a specific value to the activation coefficient for the specified neuron.
-#             """
-#             print(f"Modifying activation value for neuron {neuron_idx}...")
-
-#             with torch.no_grad():
-#                 if neuron_idx < output.shape[-1]:
-#                     print(f"Assigning value {assigned_value} to neuron {neuron_idx}...")
-#                     output[:, hook_timesteps, neuron_idx] = assigned_value
-#                 else:
-#                     print(f"Neuron index {neuron_idx} is out of bounds for the output tensor with dimension {output.shape[-1]}")
-
-#             return output # Assign the pre-gelu activation value
-
-#         return hook
-
-#     hooks = []
-
-#     # Register a hook for each (layer_idx, neuron_idx) pair
-#     for layer_idx, neuron_idx, assigned_value in neuron_configs:
-#         print(f"Registering hook for neuron {neuron_idx} in layer {layer_idx}...")
-
-#         # Register the hook on the c_fc layer of the given layer index
-#         hook = model.transformer.h[layer_idx].mlp.c_fc.register_forward_hook(
-#             patch(neuron_idx, assigned_value)
-#         )
-#         hooks.append(hook)  # Keep track of the hooks for cleanup later
-
-#     print(f"Hooks registered successfully for {len(neuron_configs)} neurons.")
-#     return model, hooks  # Return the model and the hooks for cleanup later
-
-
-
-
-def assign_activations_to_neurons(model, config):
+def assign_activations_to_neurons_gpt2(model, config):
     """
-    Modify the activation coefficients for specific neurons in different layers, with enhanced GPU utilization.
+    Modify the activation coefficients for specific neurons in different layers.
     Each entry in the config contains a tuple (layer_idx, neuron_idx, assigned_value).
     """
     neuron_configs = config['neuron_configs']  # List of (layer_idx, neuron_idx, assigned_value)
     hook_timesteps = config["hook_timesteps"]
 
-    # Convert neuron configs to tensors for batch processing on GPU
+    # Convert neuron configs to tensors for batch processing 
     layer_idxs = torch.tensor([cfg[0] for cfg in neuron_configs], device="cuda")
     neuron_idxs = torch.tensor([cfg[1] for cfg in neuron_configs], device="cuda")
     assigned_values = torch.tensor([cfg[2] for cfg in neuron_configs], device="cuda")
@@ -415,11 +371,73 @@ def assign_activations_to_neurons(model, config):
             Forward hook to assign specific values to multiple neurons' activation coefficients in parallel.
             """
             with torch.no_grad():
-                # Direct batch assignment of values to specified neurons
                 output[:, hook_timesteps, neuron_idx_tensor] = assigned_value_tensor
                 print(f"Assigned values to neurons in layer {layer_idx}") # {neuron_idx_tensor.tolist()}
 
             return output  # Return the modified pre-GELU activation
+
+        return hook
+
+    hooks = []
+
+    # Group by layer for parallel assignment within each layer
+    layer_groups = {}
+    for i, layer_idx in enumerate(layer_idxs):
+        print(layer_idx)
+        if layer_idx.item() not in layer_groups:
+            layer_groups[layer_idx.item()] = ([], [])
+        layer_groups[layer_idx.item()][0].append(neuron_idxs[i])
+        layer_groups[layer_idx.item()][1].append(assigned_values[i])
+
+    # Register one hook per unique layer, assigning multiple neurons in parallel
+    for layer_idx, (neuron_idx_list, assigned_value_list) in layer_groups.items():
+        neuron_idx_tensor = torch.tensor(neuron_idx_list, device="cuda")
+        assigned_value_tensor = torch.tensor(assigned_value_list, device="cuda")
+
+        # Register a single hook for each layer that applies all neuron changes in one batch
+        hook = model.transformer.h[layer_idx].mlp.c_fc.register_forward_hook(
+            patch(layer_idx, neuron_idx_tensor, assigned_value_tensor)
+        )
+        hooks.append(hook)
+
+    print(f"Successfully registered hooks for {len(layer_groups)} layers with GPU batch processing.")
+    return model, hooks  
+
+
+
+
+
+def assign_activations_to_neurons_new(model, config):
+    """
+    Modify the activation coefficients for specific neurons in different layers.
+    Each entry in the config contains a tuple (layer_idx, neuron_idx, assigned_value).
+    """
+    config_path = config['neuron_configs_path']  # csv file path
+    hook_timesteps = config["hook_timesteps"]
+
+    df_neurons = pd.read_csv(config_path)
+    neuron_configs = df_neurons.to_records(index=False).tolist()  # List of (layer_idx, neuron_idx, assigned_value)
+    print(neuron_configs[0])
+
+    # batch processing 
+    layer_idxs = torch.tensor([cfg[0] for cfg in neuron_configs], device="cuda")
+    neuron_idxs = torch.tensor([cfg[1] for cfg in neuron_configs], device="cuda")
+    assigned_values = torch.tensor([cfg[2] for cfg in neuron_configs], device="cuda")
+
+    def patch(layer_idx, neuron_idx_tensor, assigned_value_tensor):
+        def hook(module, input):
+            """
+            Forward hook to assign specific values to multiple neurons' activation coefficients 
+            at the **input** to mlp.down_proj.
+            """
+            with torch.no_grad():
+                assigned_value_tensor_casted = assigned_value_tensor.to(input[0].dtype)
+
+                # Assign the modified activation values
+                input[0][:, hook_timesteps, neuron_idx_tensor] = assigned_value_tensor_casted
+                print(f"Assigned values to neurons in layer {layer_idx} at input to mlp.down_proj")
+
+            return input  
 
         return hook
 
@@ -439,71 +457,14 @@ def assign_activations_to_neurons(model, config):
         assigned_value_tensor = torch.tensor(assigned_value_list, device="cuda")
 
         # Register a single hook for each layer that applies all neuron changes in one batch
-        hook = model.transformer.h[layer_idx].mlp.c_fc.register_forward_hook(
+        hook = model.model.layers[layer_idx].mlp.down_proj.register_forward_pre_hook(
             patch(layer_idx, neuron_idx_tensor, assigned_value_tensor)
         )
         hooks.append(hook)
 
-    print(f"Successfully registered hooks for {len(layer_groups)} layers with GPU batch processing.")
-    return model, hooks  # Return the model and the hooks for cleanup later
+    print(f"Successfully registered hooks for {len(layer_groups)} layers at input to mlp.down_proj.")
+    return model, hooks  
 
-
-
-# def assign_activations_to_neurons(model, config):
-#     """
-#     Modify the activation coefficients for specific neurons in different layers. Each entry in the config
-#     contains a tuple (layer_idx, neuron_idx, assigned_value), and one hook is registered per (layer, neuron) pair.
-#     """
-#     neuron_configs = config['neuron_configs']  # List of (layer_idx, neuron_idx, assigned_value)
-#     hook_timesteps = config["hook_timesteps"]
-
-#     # Convert the neuron configuration to GPU tensors for parallelized assignment
-#     layer_idxs = torch.tensor([cfg[0] for cfg in neuron_configs], device="cuda")
-#     neuron_idxs = torch.tensor([cfg[1] for cfg in neuron_configs], device="cuda")
-#     assigned_values = torch.tensor([cfg[2] for cfg in neuron_configs], device="cuda")
-
-#     def patch(layer_idx, neuron_idx_list, assigned_value_list):
-#         def hook(module, input, output):
-#             """
-#             Forward hook to assign specific values to multiple neurons' activation coefficients.
-#             """
-#             print(f"Modifying activation values for neurons in layer {layer_idx}...")
-
-#             with torch.no_grad():
-#                 for neuron_idx, assigned_value in zip(neuron_idx_list, assigned_value_list):
-#                     if neuron_idx < output.shape[-1]:
-#                         print(f"Assigning value {assigned_value.item()} to neuron {neuron_idx.item()}...")
-#                         output[:, hook_timesteps, neuron_idx] = assigned_value
-#                     else:
-#                         print(f"Neuron index {neuron_idx.item()} is out of bounds for the output tensor with dimension {output.shape[-1]}")
-
-#             return output  # Assign the modified pre-GELU activation
-
-#         return hook
-
-#     hooks = []
-
-#     # Group configurations by layer index to enable parallel processing
-#     layer_groups = {}
-#     for i, layer_idx in enumerate(layer_idxs):
-#         if layer_idx.item() not in layer_groups:
-#             layer_groups[layer_idx.item()] = ([], [])
-#         layer_groups[layer_idx.item()][0].append(neuron_idxs[i])
-#         layer_groups[layer_idx.item()][1].append(assigned_values[i])
-
-#     # Register one hook per unique layer, passing multiple neurons to each
-#     for layer_idx, (neuron_idx_list, assigned_value_list) in layer_groups.items():
-#         neuron_idx_tensor = torch.tensor(neuron_idx_list, device="cuda")
-#         assigned_value_tensor = torch.tensor(assigned_value_list, device="cuda")
-#         print(f"Registering hook for layer {layer_idx} on {len(neuron_idx_list)} neurons...")
-
-#         hook = model.transformer.h[layer_idx].mlp.c_fc.register_forward_hook(
-#             patch(layer_idx, neuron_idx_tensor, assigned_value_tensor)
-#         )
-#         hooks.append(hook)
-
-#     print(f"Hooks registered successfully for {len(neuron_configs)} neurons across {len(layer_groups)} layers.")
-#     return model, hooks  # Return the model and the hooks for cleanup later
 
 
 

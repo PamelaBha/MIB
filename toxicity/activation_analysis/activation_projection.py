@@ -23,13 +23,13 @@ from fig_utils import load_model
 device = torch.device("cuda") 
 ROOT_DIR = '/data/kebl6672/dpo-toxic-general/checkpoints'
 
-model_name = "google/gemma-2-2b" # "mistralai/Mistral-7B-v0.1" # "meta-llama/Llama-3.1-8B" # "gpt2-medium" # "meta-llama/Llama-3.1-8B" # "google/gemma-2-2b", # "gpt2-medium", # "mistralai/Mistral-7B-v0.1",
-dpo_model_name = "gemma2_2b_dpo_0.05_final.pt" # "llama3_dpo_0.1_attn_final.pt" # "mistral_dpo.pt" # "gpt2_dpo.pt" # "llama3_dpo_2.pt"
-probe_name = "gemma2_2b_probe.pt" # "mistral_probe.pt" # "gpt2_probe.pt" # "llama3_probe.pt"
-model_short_name = "gemma2" # "llama3" # "mistral" #"gpt2"
-BATCH_SIZE = 16 
+model_name = "meta-llama/Llama-3.1-8B" # "google/gemma-2-2b" # "mistralai/Mistral-7B-v0.1" # "meta-llama/Llama-3.1-8B" # "gpt2-medium" # "meta-llama/Llama-3.1-8B" # "google/gemma-2-2b", # "gpt2-medium", # "mistralai/Mistral-7B-v0.1",
+dpo_model_name = "llama3_dpo_0.1_attn_final.pt" # "gemma2_2b_dpo_0.05_final.pt" # "llama3_dpo_0.1_attn_final.pt" # "mistral_dpo.pt" # "gpt2_dpo.pt" # "llama3_dpo_2.pt"
+probe_name = "llama3_probe.pt" # "gemma2_2b_probe.pt" # "mistral_probe.pt" # "gpt2_probe.pt" # "llama3_probe.pt"
+model_short_name = "llama3" # "gemma2" "mistral" #"gpt2"
+BATCH_SIZE = 64
 
-### Load the tokenizer and model
+## Load the tokenizer and model
 # config = {"model_or_path": model_name, "tokenizer": model_name, "device": "cuda"}
 # model, tokenizer = load_model(config)
 
@@ -41,7 +41,6 @@ config_dpo = {
     "state_dict_path": os.path.join(ROOT_DIR, dpo_model_name),
 }
 dpo_model, tokenizer = load_model(config_dpo)
-
 
 # Load the toxic probe vector
 toxic_vector = torch.load(os.path.join(ROOT_DIR, probe_name)).to(device)  
@@ -124,7 +123,7 @@ def compute_neuron_toxic_projection(model, tokenized_prompts, toxic_vector, batc
             v = torch.matmul(value_vectors.to(toxic_vector.dtype), toxic_vector) / toxic_norm  # (d_mlp)
             print(f"Layer {layer_idx} value vector projection shape (d_mlp): {v.shape}")
 
-            # Ensure capturing the last 20 generated token activations
+            # Capturing the last 20 generated token activations
             neuron_acts_gen = neuron_acts[:, -20:, :]  # (B, 20, d_mlp)
             print(f"Extracting last 20 tokens (B, 20, d_mlp): {neuron_acts_gen.shape}")
 
@@ -176,7 +175,7 @@ def save_neuron_projections_to_csv(avg_neuron_projections, avg_neuron_activation
 
     df = pd.DataFrame(data, columns=["layer_idx", "neuron_idx", "projection_value", "activation_value"])
     
-    filename = f"{model_name}_neuron_projections_3.csv"
+    filename = f"{model_name}_neuron_projections.csv"
     df.to_csv(filename, index=False)
     print(f"Neuron projections and activations saved to {filename}")
 
@@ -210,7 +209,7 @@ def compute_all_neuron_cossims(model, toxic_vector, model_name):
         ])
 
     df = pd.DataFrame(model_neuron_cossims)
-    csv_filename = f"{model_name}_neuron_cossims_3.csv"
+    csv_filename = f"{model_name}_neuron_cossims.csv"
     df.to_csv(csv_filename, index=False)
     # print(f"Cosine similarities saved to {csv_filename}")
 

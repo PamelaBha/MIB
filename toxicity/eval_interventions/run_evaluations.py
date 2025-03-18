@@ -40,10 +40,8 @@ from toxicity.eval_interventions.hook_utils import (
     scale_top_value_vectors,
     scale_top_key_vectors_with_positive_activations,
     scale_top_value_vectors_with_positive_activations,
-    # hook_and_revert_activations,
-    # zero_out_activation_at_neuron,
-    print_and_return_activation_values,
-    assign_activations_to_neurons
+    assign_activations_to_neurons_gpt2, 
+    assign_activations_to_neurons_new
 )
 from constants import (
     ROOT_DIR,
@@ -81,8 +79,9 @@ HOOK_FUNCS = {
     "scale_value_vector_with_positive_activation": scale_top_value_vectors_with_positive_activations,
     # "revert_activations": hook_and_revert_activations,
     # "zero_out_activation_at_neuron": zero_out_activation_at_neuron,
-    "print_and_return_activation_values": print_and_return_activation_values,
-    "assign_activations_to_neurons": assign_activations_to_neurons
+    # "print_and_return_activation_values": print_and_return_activation_values,
+    "assign_activations_to_neurons_gpt2": assign_activations_to_neurons_gpt2,
+    "assign_activations_to_neurons_general": assign_activations_to_neurons_new
 }
 UNHOOK_FUNCS = {}
 
@@ -299,10 +298,10 @@ def main():
     verbose_mode = VERBOSE  
     config = {
         "model": {
-            "model_or_path": "google/gemma-2-2b", #"meta-llama/Llama-3.1-8B", #"google/gemma-2-9b", # "gpt2-medium", # "meta-llama/Llama-3.1-8B", # "google/gemma-2-2b", # "mistralai/Mistral-7B-v0.1"
+            "model_or_path": "meta-llama/Llama-3.1-8B", #"gpt2-medium", # "meta-llama/Llama-3.1-8B", #"meta-llama/Llama-3.1-8B", #"google/gemma-2-9b", # "gpt2-medium", "google/gemma-2-2b", # "mistralai/Mistral-7B-v0.1"
             # "state_dict_path": os.path.join(CKPT_DIR, "gemma2_2b_dpo_0.05.pt"), # Use the DPO model # dpo.pt #mistral_dpo.pt
-            "tokenizer": "google/gemma-2-2b", # "mistralai/Mistral-7B-v0.1", # "meta-llama/Llama-3.1-8B", # "meta-llama/Llama-2-7b-hf", #"google/gemma-2-2b-it", #"mistralai/Mistral-7B-v0.1",#"google/gemma-2-2b", #"meta-llama/Meta-Llama-3-8B", # gpt2-medium
-            "batch_size": 128,
+            "tokenizer": "meta-llama/Llama-3.1-8B", # "meta-llama/Llama-3.1-8B", # "mistralai/Mistral-7B-v0.1", # "meta-llama/Llama-3.1-8B", # "meta-llama/Llama-2-7b-hf", #"google/gemma-2-2b-it", #"mistralai/Mistral-7B-v0.1",#"google/gemma-2-2b", #"meta-llama/Meta-Llama-3-8B", # gpt2-medium
+            "batch_size": 64,
             "device": device if torch.cuda.is_available() else "cpu",
         },
         "metrics": [
@@ -431,12 +430,18 @@ def main():
         #             "neuron_index": 770
         #              }
         #     }
-        # # ],
-        #     {
-        #          "method": "assign_activations_to_neurons", 
-        #          "params": {
-        #             "neuron_configs": [(19, 770, -0.0169772829954633), (12, 771, 0.0496953833745479), (18, 2669, 0.0038321316449479), (13, 668, -0.0705880833683915), (16, 255, -0.0011058073714611), (12, 882, -0.1133939705224594), (19, 1438, 0.1529453023995499), (8, 2854, -0.0539521720878145), (3, 3680, -0.0152621103135037), (14, 1958, -0.1336678191107452), (13, 2258, -0.1093105478944804), (11, 1550, -0.1123083027197374), (10, 3477, -0.0938268208474648), (0, 2352, -0.0246489237264331), (3, 3742, -0.0388831071625881), (11, 4021, -0.0645628194619178), (11, 175, -0.0332215121624722), (19, 3341, -0.0400893745592313), (16, 603, -0.0830782151805525), (11, 2617, -0.0823726907498043), (8, 3200, 0.0812913229606043), (19, 2312, -0.0782193847853405), (20, 3210, 0.045648079442006), (12, 3413, -0.0975113355043999), (6, 3972, 0.2822398754686984), (0, 3393, 0.124103451606729), (15, 4051, -0.0847701643804821), (13, 3243, 0.0382593392343362), (10, 628, 0.0099433078457777), (15, 3116, -0.0262833454149286), (19, 505, -0.0937405571638789), (1, 1342, -0.0545511557240037), (14, 883, -0.1315343724364878), (7, 3688, 0.026968601174122), (17, 3162, -0.0146124889138183), (1, 572, 0.0006069859673697)]}
-        #     }
+            # {
+            #      "method": "assign_activations_to_neurons_general", 
+            #      "params": {
+            #         "neuron_configs_path": '/data/kebl6672/dpo-toxic-general/toxicity/activation_analysis/llama3_tp_neuron_configs_new.csv'
+            #     }
+            # }
+            # {
+            #      "method": "assign_activations_to_neurons_gpt2", 
+            #      "params": {
+            #         "neuron_configs": []
+            #     }
+            # }
         ],
     }
     results = run_eval(config)
