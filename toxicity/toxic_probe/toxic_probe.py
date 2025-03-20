@@ -11,53 +11,47 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 
-# Set device
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Change as needed
+
 MODEL_NAME = "google/gemma-2-2b" # google/gemma-7b # "google/gemma-2-2b" #"meta-llama/Llama-3.1-8B" # "mistralai/Mistral-7B-v0.1" # "google/gemma-2-2b","gpt2-medium", "meta-llama/Llama-3.1-8B"
 PROBE_NAME = "gemma_2_2b_probe.pt" # "gemma_probe.pt" # "llama3_probe.pt" # "mistral_probe.pt" 
 BATCH_SIZE = 128 # Control memory usage
 
-# Load tokenizer and model
+
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-# Load model with float32 precision
 # Determine whether the model is a Gemma or LLaMA model
 is_gemma = "gemma" in MODEL_NAME.lower()
 
-# Load model with appropriate attention implementation
+# Load model with appropriate attention 
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
     torch_dtype=torch.float32,
     attn_implementation="eager" if is_gemma else "sdpa"
 ).to(device)
 
-# Set model to evaluation mode
 model.eval()
 
 tokenizer.pad_token_id = tokenizer.eos_token_id
 tokenizer.padding_side = "left"
 
-# Load Jigsaw Toxicity dataset
+
+# Load data
 dataset = load_dataset("jigsaw_toxicity_pred", data_dir="/data/kebl6672/dpo-toxic-general/data/jigsaw-toxic-comment-classification-challenge")
 
-# Tokenize the dataset before splitting
 def tokenize_batch(batch):
     return tokenizer(batch["comment_text"], truncation=True, padding="max_length", max_length=128)
 
 dataset = dataset.map(tokenize_batch, batched=True)  # Ensure all data has 'input_ids' and 'attention_mask'
 
-# Convert dataset to Pandas DataFrame
 train_df = pd.DataFrame(dataset["train"])
 
-# Split dataset (90:10 for training and validation)
 train_df, val_df = train_test_split(train_df, test_size=0.1, random_state=42)
 
-# Reset indices to avoid misalignment issues
 train_df = train_df.reset_index(drop=True)
 val_df = val_df.reset_index(drop=True)
 
-# Extract text and labels
 train_texts, train_labels = train_df["comment_text"].tolist(), train_df["toxic"].tolist()
 val_texts, val_labels = val_df["comment_text"].tolist(), val_df["toxic"].tolist()
 
@@ -124,7 +118,7 @@ def extract_features(texts):
     
 #     return np.vstack(all_features)
 
-# Extract features for training and validation
+
 print("Extracting train features...")
 train_features = extract_features(train_texts)
 print("Extracting validation features...")
@@ -164,7 +158,7 @@ val_labels = np.array(val_labels)
 clf = LogisticRegression(max_iter=500)
 clf.fit(train_features, train_labels)
 
-# Save the learned probe vector (weights of logistic regression)
+# Save the learned probe vector 
 probe_vector = torch.tensor(clf.coef_, dtype=torch.float32)  # Shape: (1, hidden_dim)
 torch.save(probe_vector, PROBE_NAME)
 print("Toxicity probe vector saved.")

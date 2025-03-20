@@ -82,6 +82,7 @@ def get_intervene_vector(model, config):
     }[config["type"]](config)
 
 
+### Old version
 # def hook_subtract(model, config):
 #     intervene_vector = get_intervene_vector(model, config)
 #     scale = config["scale"]

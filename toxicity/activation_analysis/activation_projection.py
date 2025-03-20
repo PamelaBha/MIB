@@ -64,7 +64,6 @@ attention_mask = (tokenized_prompts != tokenizer.pad_token_id).long().to(device)
 
 
 
-# Compute the neuron toxicity projection 
 def compute_neuron_toxic_projection(model, tokenized_prompts, toxic_vector, batch_size=BATCH_SIZE):
     """
     Computes neuron toxicity projections by extracting activations
