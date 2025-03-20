@@ -23,15 +23,15 @@ from fig_utils import load_model
 device = torch.device("cuda") 
 ROOT_DIR = '/data/kebl6672/dpo-toxic-general/checkpoints'
 
-model_name = "meta-llama/Llama-3.1-8B" # "google/gemma-2-2b" # "mistralai/Mistral-7B-v0.1" # "meta-llama/Llama-3.1-8B" # "gpt2-medium" # "meta-llama/Llama-3.1-8B" # "google/gemma-2-2b", # "gpt2-medium", # "mistralai/Mistral-7B-v0.1",
-dpo_model_name = "llama3_dpo_0.1_attn_final.pt" # "gemma2_2b_dpo_0.05_final.pt" # "llama3_dpo_0.1_attn_final.pt" # "mistral_dpo.pt" # "gpt2_dpo.pt" # "llama3_dpo_2.pt"
-probe_name = "llama3_probe.pt" # "gemma2_2b_probe.pt" # "mistral_probe.pt" # "gpt2_probe.pt" # "llama3_probe.pt"
-model_short_name = "llama3" # "gemma2" "mistral" #"gpt2"
-BATCH_SIZE = 64
+model_name = "google/gemma-2-2b" # "google/gemma-2-2b" # "mistralai/Mistral-7B-v0.1" # "meta-llama/Llama-3.1-8B" # "gpt2-medium" # "meta-llama/Llama-3.1-8B" # "google/gemma-2-2b", # "gpt2-medium", # "mistralai/Mistral-7B-v0.1",
+dpo_model_name = "gemma2_2b_dpo_0.05_final.pt" # "gemma2_2b_dpo_0.05_final.pt" # "llama3_dpo_0.1_attn_final.pt" # "mistral_dpo.pt" # "gpt2_dpo.pt" # "llama3_dpo_2.pt"
+probe_name = "gemma2_2b_probe.pt" # "gemma2_2b_probe.pt" # "mistral_probe.pt" # "gpt2_probe.pt" # "llama3_probe.pt"
+model_short_name = "gemma2" # "gemma2" "mistral" #"gpt2"
+BATCH_SIZE = 256
 
 ## Load the tokenizer and model
-# config = {"model_or_path": model_name, "tokenizer": model_name, "device": "cuda"}
-# model, tokenizer = load_model(config)
+config = {"model_or_path": model_name, "tokenizer": model_name, "device": "cuda"}
+model, tokenizer = load_model(config)
 
 ## Load the DPO-ed model
 config_dpo = {
@@ -67,7 +67,7 @@ attention_mask = (tokenized_prompts != tokenizer.pad_token_id).long().to(device)
 # Compute the neuron toxicity projection 
 def compute_neuron_toxic_projection(model, tokenized_prompts, toxic_vector, batch_size=BATCH_SIZE):
     """
-    Computes memory-efficient neuron toxicity projections by extracting activations
+    Computes neuron toxicity projections by extracting activations
     after non-linearity using hooks on down_proj (second MLP weight matrix).
     """
     model = model.module if isinstance(model, torch.nn.DataParallel) else model
@@ -222,10 +222,10 @@ def compute_all_neuron_cossims(model, toxic_vector, model_name):
 def main():
     """Main execution pipeline."""
     ### Compute and save neuron projections for the base model
-    # print("Processing pre-trained model...")
-    # avg_neuron_projections, avg_neuron_activations = compute_neuron_toxic_projection(model, tokenized_prompts, toxic_vector)
-    # save_neuron_projections_to_csv(avg_neuron_projections, avg_neuron_activations, model_short_name)
-    # compute_all_neuron_cossims(model, toxic_vector, model_short_name)
+    print("Processing pre-trained model...")
+    avg_neuron_projections, avg_neuron_activations = compute_neuron_toxic_projection(model, tokenized_prompts, toxic_vector)
+    save_neuron_projections_to_csv(avg_neuron_projections, avg_neuron_activations, model_short_name)
+    compute_all_neuron_cossims(model, toxic_vector, model_short_name)
 
     ### Compute and save neuron projections for the DPO-trained model
     print("Processing DPO model...")

@@ -3,6 +3,8 @@ checkpoints/*
 data/*
 outputs/*
 ignore/*
+toxicity/**/*.csv 
+toxicity/activation_analysis/*.csv 
 svd_projected_tokens_split0.log
 svd_projected_tokens.log
 api_key

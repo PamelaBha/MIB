@@ -406,7 +406,6 @@ def assign_activations_to_neurons_gpt2(model, config):
 
 
 
-
 def assign_activations_to_neurons_new(model, config):
     """
     Modify the activation coefficients for specific neurons in different layers.
@@ -417,7 +416,7 @@ def assign_activations_to_neurons_new(model, config):
 
     df_neurons = pd.read_csv(config_path)
     neuron_configs = df_neurons.to_records(index=False).tolist()  # List of (layer_idx, neuron_idx, assigned_value)
-    print(neuron_configs[0])
+    # print(neuron_configs[0])
 
     # batch processing 
     layer_idxs = torch.tensor([cfg[0] for cfg in neuron_configs], device="cuda")
