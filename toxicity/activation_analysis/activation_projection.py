@@ -23,10 +23,10 @@ from fig_utils import load_model
 device = torch.device("cuda") 
 ROOT_DIR = '/data/kebl6672/dpo-toxic-general/checkpoints'
 
-model_name = "google/gemma-2-2b" # "google/gemma-2-2b" # "mistralai/Mistral-7B-v0.1" # "meta-llama/Llama-3.1-8B" # "gpt2-medium" # "meta-llama/Llama-3.1-8B" # "google/gemma-2-2b", # "gpt2-medium", # "mistralai/Mistral-7B-v0.1",
-dpo_model_name = "gemma2_2b_dpo_0.05_final.pt" # "gemma2_2b_dpo_0.05_final.pt" # "llama3_dpo_0.1_attn_final.pt" # "mistral_dpo.pt" # "gpt2_dpo.pt" # "llama3_dpo_2.pt"
-probe_name = "gemma2_2b_probe.pt" # "gemma2_2b_probe.pt" # "mistral_probe.pt" # "gpt2_probe.pt" # "llama3_probe.pt"
-model_short_name = "gemma2" # "gemma2" "mistral" #"gpt2"
+model_name = "gpt2-medium" # "google/gemma-2-2b" # "google/gemma-2-2b" # "mistralai/Mistral-7B-v0.1" # "meta-llama/Llama-3.1-8B" # "gpt2-medium" # "meta-llama/Llama-3.1-8B" # "google/gemma-2-2b", # "gpt2-medium", # "mistralai/Mistral-7B-v0.1",
+dpo_model_name = "gpt2_dpo.pt" # "gemma2_2b_dpo_0.05_final.pt" # "llama3_dpo_0.1_attn_final.pt" # "mistral_dpo.pt" # "gpt2_dpo.pt" # "llama3_dpo_2.pt"
+probe_name = "gpt2_probe.pt" # "gemma2_2b_probe.pt" # "mistral_probe.pt" # "gpt2_probe.pt" # "llama3_probe.pt"
+model_short_name = "gpt2" # "gemma2" "mistral" #"gpt2"
 BATCH_SIZE = 1024
 
 ## Load the tokenizer and model

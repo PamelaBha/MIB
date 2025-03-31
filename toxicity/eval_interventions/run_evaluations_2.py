@@ -434,7 +434,7 @@ def main():
             {
                  "method": "assign_activations_to_neurons_general", 
                  "params": {
-                    "neuron_configs_path": '/data/kebl6672/dpo-toxic-general/toxicity/activation_analysis/mistral_1.5_tn_free_neuron_configs.csv'
+                    "neuron_configs_path": '/data/kebl6672/dpo-toxic-general/toxicity/activation_analysis/mistral_1.5_halve_free_neuron_configs.csv'
                 }
             }
             # {
