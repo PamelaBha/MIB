@@ -256,7 +256,7 @@ def run_detoxify_toxicity(
     config,
 ):
     """
-    Compute toxicity scores using Detoxify instead of Perspective API.
+    Compute toxicity scores using Detoxify.
     """
     generations = intervene_results["pred_text"]
 
@@ -274,6 +274,6 @@ def run_detoxify_toxicity(
     toxicity_scores = []
     for text in generations:
         scores = detoxify_model.predict(text)
-        toxicity_scores.append(scores["toxicity"])  # Extract only "toxicity" scores
-    
+        toxicity_scores.append(scores["toxicity"])  
+        
     return np.mean(toxicity_scores)  # Return average toxicity score across samples
