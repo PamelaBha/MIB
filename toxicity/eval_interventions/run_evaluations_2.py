@@ -436,7 +436,7 @@ def main():
             {
                  "method": "assign_activations_to_neurons_general", 
                  "params": {
-                    "neuron_configs_path": '/data/kebl6672/dpo-toxic-general/toxicity/activation_analysis/gemma2_embed_halve_two_free_neuron_configs.csv'
+                    "neuron_configs_path": '/data/kebl6672/dpo-toxic-general/toxicity/activation_analysis/gemma2_embed_1.5_0.5_free_neuron_configs.csv'
                 }
             }
             # {

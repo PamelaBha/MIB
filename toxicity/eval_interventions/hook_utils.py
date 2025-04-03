@@ -434,7 +434,7 @@ def assign_activations_to_neurons_new(model, config):
 
                 # Assign the modified activation values
                 input[0][:, hook_timesteps, neuron_idx_tensor] = assigned_value_tensor_casted
-                print(f"Assigned values to neurons in layer {layer_idx} at input to mlp.down_proj")
+                # print(f"Assigned values to neurons in layer {layer_idx} at input to mlp.down_proj")
 
             return input  
 
@@ -461,7 +461,7 @@ def assign_activations_to_neurons_new(model, config):
         )
         hooks.append(hook)
 
-    print(f"Successfully registered hooks for {len(layer_groups)} layers at input to mlp.down_proj.")
+    # print(f"Successfully registered hooks for {len(layer_groups)} layers at input to mlp.down_proj.")
     return model, hooks  
 
 
@@ -492,7 +492,7 @@ def assign_activations_to_neurons_full(model, config):
             with torch.no_grad():
                 assigned_value_tensor_casted = assigned_value_tensor.to(input[0].dtype)
                 input[0][:, hook_timesteps, neuron_idx_tensor] = assigned_value_tensor_casted
-                print(f"Assigned values to neurons in layer {layer_idx} at input to mlp.down_proj")
+                # print(f"Assigned values to neurons in layer {layer_idx} at input to mlp.down_proj")
             return input
         return hook
 
@@ -528,7 +528,7 @@ def assign_activations_to_neurons_full(model, config):
         except Exception as e:
             print(f"Failed to register hook for layer {layer_idx}: {e}")
 
-    print(f"Successfully registered hooks for {len(hooks)} layers.")
+    # print(f"Successfully registered hooks for {len(hooks)} layers.")
     return model, hooks
 
 

@@ -165,8 +165,7 @@ def _eval_intervene(
         metric_type = _metric_conf["metric"]
         intervene_config["params"]["max_new_tokens"] = None
 
-        # verbose_print(f"Evaluating {metric_type}")
-        print(f"Evaluating {metric_type}")
+        verbose_print(f"Evaluating {metric_type}")
         data = _metric_conf["tokenized"]
 
         intervene_config["params"]["hook_timesteps"] = -1
@@ -187,8 +186,8 @@ def _eval_intervene(
             ]
             generations = generate(model, data, intervene_config)
             for gen in generations["pred_text"][:30]:
-                # verbose_print(gen)
-                print(gen)
+                verbose_print(gen)
+                # print(gen)
 
         results[metric_type] = run_metric(
             metric_type,
@@ -301,9 +300,9 @@ def main():
     verbose_mode = VERBOSE  
     config = {
         "model": {
-            "model_or_path": "google/gemma-2-2b", #"gpt2-medium", # "meta-llama/Llama-3.1-8B", #"meta-llama/Llama-3.1-8B", # "gpt2-medium", "google/gemma-2-2b", # "mistralai/Mistral-7B-v0.1"
+            "model_or_path": "mistralai/Mistral-7B-v0.1", #"gpt2-medium", # "meta-llama/Llama-3.1-8B", #"meta-llama/Llama-3.1-8B", # "gpt2-medium", "google/gemma-2-2b", # "mistralai/Mistral-7B-v0.1"
             # "state_dict_path": os.path.join(CKPT_DIR, "gemma2_2b_dpo_0.05.pt"), # Use the DPO model # dpo.pt #mistral_dpo.pt
-            "tokenizer": "google/gemma-2-2b", # "meta-llama/Llama-3.1-8B", # "mistralai/Mistral-7B-v0.1", # "meta-llama/Llama-3.1-8B", # "meta-llama/Llama-2-7b-hf", #"google/gemma-2-2b-it", #"mistralai/Mistral-7B-v0.1",#"google/gemma-2-2b", #"meta-llama/Meta-Llama-3-8B", # gpt2-medium
+            "tokenizer": "mistralai/Mistral-7B-v0.1", # "meta-llama/Llama-3.1-8B", # "mistralai/Mistral-7B-v0.1", # "meta-llama/Llama-3.1-8B", # "meta-llama/Llama-2-7b-hf", #"google/gemma-2-2b-it", #"mistralai/Mistral-7B-v0.1",#"google/gemma-2-2b", #"meta-llama/Meta-Llama-3-8B", # gpt2-medium
             "batch_size": 512,
             "device": device if torch.cuda.is_available() else "cpu",
         },
@@ -436,7 +435,7 @@ def main():
             {
                  "method": "assign_activations_to_neurons_general", 
                  "params": {
-                    "neuron_configs_path": '/data/kebl6672/dpo-toxic-general/toxicity/activation_analysis/gemma2_embed_1.5_tn_free_neuron_configs.csv'
+                    "neuron_configs_path": '/data/kebl6672/dpo-toxic-general/toxicity/activation_analysis/mistral_embed_1.5_tn_free_neuron_configs.csv'
                 }
             }
             # {

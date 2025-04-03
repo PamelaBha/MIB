@@ -165,8 +165,8 @@ def _eval_intervene(
         metric_type = _metric_conf["metric"]
         intervene_config["params"]["max_new_tokens"] = None
 
-        # verbose_print(f"Evaluating {metric_type}")
-        print(f"Evaluating {metric_type}")
+        verbose_print(f"Evaluating {metric_type}")
+        # print(f"Evaluating {metric_type}")
         data = _metric_conf["tokenized"]
 
         intervene_config["params"]["hook_timesteps"] = -1
@@ -186,7 +186,7 @@ def _eval_intervene(
                 "batch_size"
             ]
             generations = generate(model, data, intervene_config)
-            for gen in generations["pred_text"][:30]:
+            for gen in generations["pred_text"][:20]:
                 # verbose_print(gen)
                 print(gen)
 
@@ -301,9 +301,9 @@ def main():
     verbose_mode = VERBOSE  
     config = {
         "model": {
-            "model_or_path": "google/gemma-2-2b", #"gpt2-medium", # "meta-llama/Llama-3.1-8B", #"meta-llama/Llama-3.1-8B", # "gpt2-medium", "google/gemma-2-2b", # "mistralai/Mistral-7B-v0.1"
+            "model_or_path": "meta-llama/Llama-3.1-8B", #"gpt2-medium", # "meta-llama/Llama-3.1-8B", #"meta-llama/Llama-3.1-8B", # "gpt2-medium", "google/gemma-2-2b", # "mistralai/Mistral-7B-v0.1"
             # "state_dict_path": os.path.join(CKPT_DIR, "gemma2_2b_dpo_0.05.pt"), # Use the DPO model # dpo.pt #mistral_dpo.pt
-            "tokenizer": "google/gemma-2-2b", # "meta-llama/Llama-3.1-8B", # "mistralai/Mistral-7B-v0.1", # "meta-llama/Llama-3.1-8B", # "meta-llama/Llama-2-7b-hf", #"google/gemma-2-2b-it", #"mistralai/Mistral-7B-v0.1",#"google/gemma-2-2b", #"meta-llama/Meta-Llama-3-8B", # gpt2-medium
+            "tokenizer": "meta-llama/Llama-3.1-8B", # "meta-llama/Llama-3.1-8B", # "mistralai/Mistral-7B-v0.1", # "meta-llama/Llama-3.1-8B", # "meta-llama/Llama-2-7b-hf", #"google/gemma-2-2b-it", #"mistralai/Mistral-7B-v0.1",#"google/gemma-2-2b", #"meta-llama/Meta-Llama-3-8B", # gpt2-medium
             "batch_size": 512,
             "device": device if torch.cuda.is_available() else "cpu",
         },
@@ -316,27 +316,27 @@ def main():
             #     "generate": True,
             #     "params": {"attributes": ATTRIBUTES, "include_prompt": False},
             # },
-            {
-                "datapath": os.path.join(DATA_DIR, "challenge_prompts_dev.jsonl") if verbose_mode else os.path.join(DATA_DIR, "challenge_prompts.jsonl"),
-                "metric": "detoxify",
-                "max_prompt_size": 32,
-                "max_new_tokens": 20,
-                "generate": True,
-                "params": {"include_prompt": False},  
-            },
-            {
-                "datapath": "wikitext",
-                "dataname": "wikitext-2-raw-v1",
-                "split": "test",
-                "metric": "perplexity",
-                "generate": False,
-            },
+            # {
+            #     "datapath": os.path.join(DATA_DIR, "challenge_prompts_dev.jsonl") if verbose_mode else os.path.join(DATA_DIR, "challenge_prompts.jsonl"),
+            #     "metric": "detoxify",
+            #     "max_prompt_size": 32,
+            #     "max_new_tokens": 20,
+            #     "generate": True, # False # True
+            #     "params": {"include_prompt": False},  
+            # },
+            # {
+            #     "datapath": "wikitext",
+            #     "dataname": "wikitext-2-raw-v1",
+            #     "split": "test",
+            #     "metric": "perplexity",
+            #     "generate": False,
+            # },
             {
                 "datapath": os.path.join(DATA_DIR, "wiki_samples_dev.jsonl") if verbose_mode else os.path.join(DATA_DIR, "wiki_samples.jsonl"),
                 "metric": "f1",
                 "max_prompt_size": 32,
                 "max_new_tokens": 20,
-                "generate": True,
+                "generate": True, # True # False
             },
         ],
         "interventions": [
@@ -434,9 +434,9 @@ def main():
         #              }
         #     }
             {
-                 "method": "assign_activations_to_neurons_general", 
+                 "method": "assign_activations_to_neurons_full", 
                  "params": {
-                    "neuron_configs_path": '/data/kebl6672/dpo-toxic-general/toxicity/activation_analysis/gemma2_embed_halve_tp_free_neuron_configs.csv'
+                    "neuron_configs_path": '/data/kebl6672/dpo-toxic-general/toxicity/activation_analysis/llama3_1.5_two_free_neuron_configs.csv'
                 }
             }
             # {
