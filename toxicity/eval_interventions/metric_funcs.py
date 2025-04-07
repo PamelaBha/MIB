@@ -6,7 +6,9 @@ import math
 from collections import Counter
 from tqdm import tqdm
 import numpy as np
+import re 
 import torch
+
 from torch.nn import CrossEntropyLoss
 from detoxify import Detoxify
 
@@ -125,8 +127,6 @@ def run_perplexity(
 ):
     """
     Calculate log perplexity.
-
-    :data: Tokenized dataset
     """
     encodings = data["prompt_input_ids"]
 
@@ -167,6 +167,40 @@ def run_perplexity(
 
     log_perplexity = torch.stack(log_likelihoods).sum() / total_tokens
     return log_perplexity.item()
+
+
+
+
+def run_n_gram_repetition(model, data, intervene_results, config):
+    """
+    Calculate the n-gram repetition rate for the generated text.
+    The repetition rate is defined as 1 - (unique n-grams / total n-grams).
+    A value of 0 indicates no repetition, i.e. every n-gram is unique.
+    Values closer to 1 indicate higher repetition.
+    """
+    
+    n = config.get("n", 2)  # Default n-gram size is 2 
+    generations = intervene_results["pred_text"]
+    
+    # Whether to include the prompts in generation
+    if not config.get("include_prompt", True):
+        generations = [
+            generations[idx].replace(data["prompts"][idx], "")
+            for idx in range(len(generations))
+        ]
+    
+    def compute_repetition(text, n):
+        tokens = re.findall(r'\w+', text.lower())
+        if len(tokens) < n:
+            return 0.0  
+        ngrams = [tuple(tokens[i:i+n]) for i in range(len(tokens) - n + 1)]
+        total = len(ngrams)
+        unique = len(set(ngrams))
+        return 1 - (unique / total)
+    
+    rates = [compute_repetition(text, n) for text in generations]
+    return np.mean(rates)
+
 
 
 ## detox implementation ##
@@ -270,10 +304,10 @@ def run_detoxify_toxicity(
     # Load Detoxify Model (use "original" for base model, "unbiased" for debiased model)
     detoxify_model = Detoxify("original") # bert-uncase-based model
 
-    # Compute toxicity scores
     toxicity_scores = []
     for text in generations:
         scores = detoxify_model.predict(text)
         toxicity_scores.append(scores["toxicity"])  
         
-    return np.mean(toxicity_scores)  # Return average toxicity score across samples
+    # Return average toxicity score across all samples
+    return np.mean(toxicity_scores)  

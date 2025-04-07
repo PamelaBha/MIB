@@ -502,11 +502,10 @@ def assign_activations_to_neurons_full(model, config):
         layer_groups[layer_idx.item()][0].append(neuron_idxs[i])
         layer_groups[layer_idx.item()][1].append(assigned_values[i])
 
-    # Detect architecture (Llama vs GPT2)
     if hasattr(model, 'model') and hasattr(model.model, 'layers'):
         # Llama-style (model.model.layers)
         layer_accessor = lambda idx: model.model.layers[idx].mlp.down_proj
-        print("Detected LLaMA-style model.")
+        print("Detected Llama-style model.")
     elif hasattr(model, 'transformer') and hasattr(model.transformer, 'h'):
         # GPT2-style (model.transformer.h)
         layer_accessor = lambda idx: model.transformer.h[idx].mlp.c_proj
@@ -531,66 +530,6 @@ def assign_activations_to_neurons_full(model, config):
     # print(f"Successfully registered hooks for {len(hooks)} layers.")
     return model, hooks
 
-
-
-def print_and_return_activation_values(model, config):
-    """
-    Found that output of c_fc is before GeLU, input to c_proj is after GeLU.
-    Print dimensions and return the activation values at neuron_idx for the output of c_fc and input of c_proj.
-    """
-    layer_idx = config['layer_index']
-    neuron_idx = config['neuron_index']
-    # hook_timesteps = config["hook_timesteps"]
-
-    
-    # Hook function to capture and print activations
-    def capture_output_to_c_fc(module, input, output):
-        """
-        Forward hook to print and return dimensions and values at the specific neuron.
-        """
-        print(f"Capturing activations at layer {layer_idx}, neuron {neuron_idx}...")
-        
-        # Print dimensions of the output of c_fc
-        print(f"Output of c_fc dimensions: {output.shape}")
-        
-        # Ensure the neuron index is within the bounds of the output tensor
-        if neuron_idx < output.shape[-1]:
-            neuron_value = output[:, -1, neuron_idx].detach().cpu().numpy() # Take the neuron value at the last time step
-            print(f"Output of c_fc at neuron {neuron_idx}: {neuron_value}")
-        else:
-            print(f"Neuron index {neuron_idx} is out of bounds for c_fc output with dimension {output.shape[-1]}")
-            neuron_value = None
-
-        return output  # Return the original output unchanged
-
-    def capture_input_to_c_proj(module, input, output):
-        """
-        Forward hook to capture the input to c_proj.
-        """
-        # Print dimensions of the input to c_proj
-        print(f"Input to c_proj dimensions: {input[0].shape}")  # Input is a tuple, so input[0] is what we care about
-
-        # Ensure the neuron index is within bounds of the input tensor
-        if neuron_idx < input[0].shape[-1]:
-            neuron_value = input[0][:, -1, neuron_idx].detach().cpu().numpy() # Take the neuron value at the last time step
-            print(f"Input to c_proj at neuron {neuron_idx}: {neuron_value}")
-        else:
-            print(f"Neuron index {neuron_idx} is out of bounds for c_proj input with dimension {input[0].shape[-1]}")
-            neuron_value = None
-
-        return output  # Return the original output unchanged
-
-    # Register the forward hooks on the output of c_fc and the input of c_proj in the specified transformer layer
-    print(f"Registering hooks for layer {layer_idx} at neuron {neuron_idx} (c_fc and c_proj)...")
-    
-    # Hook for c_fc output
-    c_fc_hook = model.transformer.h[layer_idx].mlp.c_fc.register_forward_hook(capture_output_to_c_fc)
-    
-    # Hook for c_proj input
-    c_proj_hook = model.transformer.h[layer_idx].mlp.c_proj.register_forward_hook(capture_input_to_c_proj)
-
-    print("Hooks registered successfully.")
-    return model, [c_fc_hook, c_proj_hook]  # Return the model and the hooks for later cleanup
 
 
 
