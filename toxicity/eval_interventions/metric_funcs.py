@@ -179,7 +179,8 @@ def run_n_gram_repetition(model, data, intervene_results, config):
     Values closer to 1 indicate higher repetition.
     """
     
-    n = config.get("n", 2)  # Default n-gram size is 2 
+    # Default n-gram size is 2 
+    n = config.get("n", 2)  
     generations = intervene_results["pred_text"]
     
     # Whether to include the prompts in generation
@@ -292,6 +293,7 @@ def run_detoxify_toxicity(
     """
     Compute toxicity scores using Detoxify.
     """
+    # print("intervene_results keys:", intervene_results.keys())
     generations = intervene_results["pred_text"]
 
     # Remove prompts from generations if not included
@@ -301,7 +303,7 @@ def run_detoxify_toxicity(
             for idx in range(len(intervene_results["pred_text"]))
         ]
     
-    # Load Detoxify Model (use "original" for base model, "unbiased" for debiased model)
+    # Load Detoxify model
     detoxify_model = Detoxify("original") # bert-uncase-based model
 
     toxicity_scores = []

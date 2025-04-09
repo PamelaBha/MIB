@@ -69,8 +69,8 @@ METRIC_FUNCS = {
     "f1": run_f1,
     "perplexity": run_perplexity,
     "dummy": run_dummy,
-    "n_gram_repetition": run_n_gram_repetition, 
     "perspective_api": run_perspective_api,
+    "n_gram_repetition": run_n_gram_repetition, 
     "detoxify": run_detoxify_toxicity,
 }
 HOOK_FUNCS = {
@@ -79,7 +79,6 @@ HOOK_FUNCS = {
     "scale_value_vector": scale_top_value_vectors,
     "scale_key_vector_with_positive_activation": scale_top_key_vectors_with_positive_activations,
     "scale_value_vector_with_positive_activation": scale_top_value_vectors_with_positive_activations,
-    # "assign_activations_to_neurons_gpt2": assign_activations_to_neurons_gpt2,
     "assign_activations_to_neurons_full": assign_activations_to_neurons_full,
     "assign_activations_to_neurons_general": assign_activations_to_neurons_new
 }
@@ -165,7 +164,6 @@ def _eval_intervene(
         intervene_config["params"]["max_new_tokens"] = None
 
         verbose_print(f"Evaluating {metric_type}")
-        # print(f"Evaluating {metric_type}")
         data = _metric_conf["tokenized"]
 
         intervene_config["params"]["hook_timesteps"] = -1
@@ -185,9 +183,9 @@ def _eval_intervene(
                 "batch_size"
             ]
             generations = generate(model, data, intervene_config)
-            for gen in generations["pred_text"][:20]:
-                # verbose_print(gen)
-                print(gen)
+            for gen in generations["pred_text"][:30]:
+                verbose_print(gen)
+                # print(gen)
 
         results[metric_type] = run_metric(
             metric_type,
@@ -300,9 +298,9 @@ def main():
     verbose_mode = VERBOSE  
     config = {
         "model": {
-            "model_or_path": "mistralai/Mistral-7B-v0.1", #"gpt2-medium", # "meta-llama/Llama-3.1-8B", #"meta-llama/Llama-3.1-8B", # "gpt2-medium", "google/gemma-2-2b", # "mistralai/Mistral-7B-v0.1"
+            "model_or_path": "meta-llama/Llama-3.1-8B", #"gpt2-medium", # "meta-llama/Llama-3.1-8B", #"meta-llama/Llama-3.1-8B", # "gpt2-medium", "google/gemma-2-2b", # "mistralai/Mistral-7B-v0.1"
             # "state_dict_path": os.path.join(CKPT_DIR, "gemma2_2b_dpo_0.05.pt"), # Use the DPO model # dpo.pt #mistral_dpo.pt
-            "tokenizer": "mistralai/Mistral-7B-v0.1", # "meta-llama/Llama-3.1-8B", # "mistralai/Mistral-7B-v0.1", # "meta-llama/Llama-3.1-8B", # "meta-llama/Llama-2-7b-hf", #"google/gemma-2-2b-it", #"mistralai/Mistral-7B-v0.1",#"google/gemma-2-2b", #"meta-llama/Meta-Llama-3-8B", # gpt2-medium
+            "tokenizer": "meta-llama/Llama-3.1-8B", # "meta-llama/Llama-3.1-8B", # "mistralai/Mistral-7B-v0.1", # "meta-llama/Llama-3.1-8B", # "meta-llama/Llama-2-7b-hf", #"google/gemma-2-2b-it", #"mistralai/Mistral-7B-v0.1",#"google/gemma-2-2b", #"meta-llama/Meta-Llama-3-8B", # gpt2-medium
             "batch_size": 256,
             "device": device if torch.cuda.is_available() else "cpu",
         },
@@ -320,7 +318,7 @@ def main():
                 "metric": "detoxify",
                 "max_prompt_size": 32,
                 "max_new_tokens": 20,
-                "generate": True, # False # True
+                "generate": True,
                 "params": {"include_prompt": False},  
             },
             {
@@ -328,14 +326,14 @@ def main():
                 "dataname": "wikitext-2-raw-v1",
                 "split": "test",
                 "metric": "perplexity",
-                "generate": False # No text generated for perplexity calculation
+                "generate": False,
             },
             {
                 "datapath": os.path.join(DATA_DIR, "wiki_samples_dev.jsonl") if verbose_mode else os.path.join(DATA_DIR, "wiki_samples.jsonl"),
                 "metric": "f1",
                 "max_prompt_size": 32,
                 "max_new_tokens": 20,
-                "generate": True, # True # False
+                "generate": True,
             },
             {
                 "datapath": os.path.join(DATA_DIR, "wiki_samples_dev.jsonl") if verbose_mode else os.path.join(DATA_DIR, "wiki_samples.jsonl"),
@@ -418,10 +416,32 @@ def main():
             #          "toxic_positive_acts_index_csv_path": "/data/kebl6672/dpo-toxic-neuron/toxic_positive_acts_idxs.csv"
             #     }
             # }
+            # {
+            #      "method": "revert_activations", 
+            #      "params": {
+            #         "probe_vector_path": os.path.join(CKPT_DIR, "probe.pt"),
+            #          "topk_sorted_score": 1,
+            #          "modification_value": [1]
+            #          }
+            # }
+            # {
+            #      "method": "zero_out_activation_at_neuron", 
+            #      "params": {
+            #         "layer_index": 19,
+            #         "neuron_index": 770
+            #          }
+            # }
+        #     {
+        #          "method": "print_and_return_activation_values", 
+        #          "params": {
+        #             "layer_index": 19,
+        #             "neuron_index": 770
+        #              }
+        #     }
             {
-                 "method": "assign_activations_to_neurons_full", 
+                 "method": "assign_activations_to_neurons_general", 
                  "params": {
-                    "neuron_configs_path": '/data/kebl6672/dpo-toxic-general/toxicity/activation_analysis/mistral_toxic_neuron_configs.csv'
+                    "neuron_configs_path": '/data/kebl6672/dpo-toxic-general/toxicity/activation_analysis/llama3_1.05_two_0.95_two_free_neuron_configs.csv'
                 }
             }
             # {
