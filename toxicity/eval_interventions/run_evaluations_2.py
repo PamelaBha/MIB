@@ -441,7 +441,7 @@ def main():
             {
                  "method": "assign_activations_to_neurons_full", 
                  "params": {
-                    "neuron_configs_path": '/data/kebl6672/dpo-toxic-general/toxicity/activation_analysis/llama3_0.99_1.01_two_0.6_cossim_embed_dpo.csv'
+                    "neuron_configs_path": '/data/kebl6672/dpo-toxic-general/toxicity/activation_analysis/llama3_0.99_1.01_two_0.55_cossim_embed_dpo.csv'
                 }
             }
         ],
